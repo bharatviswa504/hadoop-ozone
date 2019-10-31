@@ -487,14 +487,30 @@ public class ObjectEndpoint extends EndpointBase {
     List<CompleteMultipartUploadRequest.Part> partList =
         multipartUploadRequest.getPartList();
 
-    for (CompleteMultipartUploadRequest.Part part : partList) {
-      partsMap.put(part.getPartNumber(), part.geteTag());
-    }
-
-    LOG.debug("Parts map {}", partsMap.toString());
-
     OmMultipartUploadCompleteInfo omMultipartUploadCompleteInfo;
     try {
+      // Doing check here, because we add this to TreeMap and pass it to
+      // RpcClient.
+      // Checking for Invalid Part Order.
+      int prevPartNumber = partList.get(0).getPartNumber();
+      for (int i=1; i < partList.size(); i++) {
+        int currentPartNumber = partList.get(i).getPartNumber();
+        if (prevPartNumber >= currentPartNumber) {
+          LOG.error("PartNumber at index {} is {}, and its partNumber at " +
+                  "previous part index {} is {} for ozonekey", i,
+              currentPartNumber, i - 1, prevPartNumber, key);
+          throw new OMException("Complete Multipart Upload Failed for key: "
+              + key, OMException.ResultCodes.INVALID_PART_ORDER);
+        }
+        prevPartNumber = currentPartNumber;
+      }
+
+      for (CompleteMultipartUploadRequest.Part part : partList) {
+        partsMap.put(part.getPartNumber(), part.geteTag());
+      }
+
+      LOG.debug("Parts map {}", partsMap.toString());
+
       omMultipartUploadCompleteInfo = ozoneBucket.completeMultipartUpload(
           key, uploadID, partsMap);
       CompleteMultipartUploadResponse completeMultipartUploadResponse =
@@ -510,11 +526,11 @@ public class ObjectEndpoint extends EndpointBase {
     } catch (OMException ex) {
       LOG.error("Error in Complete Multipart Upload Request for bucket: " +
           bucket + ", key: " + key, ex);
-      if (ex.getResult() == ResultCodes.MISMATCH_MULTIPART_LIST) {
+      if (ex.getResult() == ResultCodes.INVALID_PART) {
         OS3Exception oex =
             S3ErrorTable.newError(S3ErrorTable.INVALID_PART, key);
         throw oex;
-      } else if (ex.getResult() == ResultCodes.MISSING_UPLOAD_PARTS) {
+      } else if (ex.getResult() == ResultCodes.INVALID_PART_ORDER) {
         OS3Exception oex =
             S3ErrorTable.newError(S3ErrorTable.INVALID_PART_ORDER, key);
         throw oex;
