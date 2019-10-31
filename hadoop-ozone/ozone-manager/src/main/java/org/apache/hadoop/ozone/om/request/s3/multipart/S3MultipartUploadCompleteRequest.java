@@ -157,11 +157,13 @@ public class S3MultipartUploadCompleteRequest extends OMKeyRequest {
         for (int i = 1; i < partsListSize; i++) {
           int currentPartNumber = partsList.get(i).getPartNumber();
           if (prevPartNumber >= currentPartNumber) {
-            LOG.error("PartNumber at index {} is {}, and its partNumber at " +
-                    "previous part index {} is {} for ozonekey", i,
-                currentPartNumber, i - 1, prevPartNumber, ozoneKey);
+            LOG.error("PartNumber at index {} is {}, and its previous " +
+                    "partNumber at index {} is {} for ozonekey is " +
+                    "{}", i, currentPartNumber, i - 1, prevPartNumber,
+                ozoneKey);
             throw new OMException("Complete Multipart Upload Failed: volume: " +
-                volumeName + "bucket: " + bucketName + "key: " + keyName,
+                volumeName + "bucket: " + bucketName + "key: " + keyName +
+                "because parts are in Invalid order.",
                 OMException.ResultCodes.INVALID_PART_ORDER);
           }
           prevPartNumber = currentPartNumber;
