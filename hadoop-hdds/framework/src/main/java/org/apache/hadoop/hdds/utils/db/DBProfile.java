@@ -64,7 +64,6 @@ public enum DBProfile {
               new BlockBasedTableConfig()
                   .setBlockCacheSize(blockCacheSize)
                   .setBlockSize(blockSize)
-                  .setCacheIndexAndFilterBlocks(true)
                   .setPinL0FilterAndIndexBlocksInCache(true)
                   .setFilter(new BloomFilter()));
     }
