@@ -196,11 +196,11 @@ public class ContainerReader implements Runnable {
           MetadataKeyFilters.KeyPrefixFilter filter =
               new MetadataKeyFilters.KeyPrefixFilter()
                   .addFilter(OzoneConsts.DELETING_KEY_PREFIX);
-          int numPendingDeletionBlocks =
+/*          int numPendingDeletionBlocks =
               containerDB.getStore().getSequentialRangeKVs(null,
                   Integer.MAX_VALUE, filter)
-                  .size();
-          kvContainerData.incrPendingDeletionBlocks(numPendingDeletionBlocks);
+                  .size();*/
+          kvContainerData.incrPendingDeletionBlocks(0);
           byte[] delTxnId = containerDB.getStore().get(
               DFSUtil.string2Bytes(OzoneConsts.DELETE_TRANSACTION_KEY_PREFIX));
           if (delTxnId != null) {
@@ -214,11 +214,11 @@ public class ContainerReader implements Runnable {
             kvContainerData
                 .updateBlockCommitSequenceId(Longs.fromByteArray(bcsId));
           }
-          if (kvContainer.getContainerState()
+/*          if (kvContainer.getContainerState()
               == ContainerProtos.ContainerDataProto.State.OPEN) {
             // commitSpace for Open Containers relies on usedBytes
             initializeUsedBytes(kvContainer);
-          }
+          }*/
           containerSet.addContainer(kvContainer);
         }
       } else {

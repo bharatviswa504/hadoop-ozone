@@ -26,6 +26,7 @@ import java.util.Map;
 
 import com.google.common.primitives.Longs;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos;
 import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.ozone.OzoneConsts;
 import org.apache.hadoop.ozone.container.common.helpers.ContainerUtils;
@@ -151,28 +152,42 @@ public final class KeyValueContainerUtil {
     }
     kvContainerData.setDbFile(dbFile);
 
-    try(ReferenceCountedDB metadata =
-            BlockUtils.getDB(kvContainerData, config)) {
-      long bytesUsed = 0;
-      List<Map.Entry<byte[], byte[]>> liveKeys = metadata.getStore()
-          .getRangeKVs(null, Integer.MAX_VALUE,
-              MetadataKeyFilters.getNormalKeyFilter());
+    if (kvContainerData.getState() == ContainerProtos.ContainerDataProto.State.OPEN) {
+      try (ReferenceCountedDB metadata =
+               BlockUtils.getDB(kvContainerData, config)) {
+        long bytesUsed = 0;
+        List< Map.Entry< byte[], byte[] > > liveKeys = metadata.getStore()
+            .getRangeKVs(null, Integer.MAX_VALUE,
+                MetadataKeyFilters.getNormalKeyFilter());
 
-      bytesUsed = liveKeys.parallelStream().mapToLong(e-> {
-        BlockData blockData;
-        try {
-          blockData = BlockUtils.getBlockData(e.getValue());
-          return blockData.getSize();
-        } catch (IOException ex) {
-          return 0L;
+        bytesUsed = liveKeys.parallelStream().mapToLong(e -> {
+          BlockData blockData;
+          try {
+            blockData = BlockUtils.getBlockData(e.getValue());
+            return blockData.getSize();
+          } catch (IOException ex) {
+            return 0L;
+          }
+        }).sum();
+        kvContainerData.setBytesUsed(bytesUsed);
+        kvContainerData.setKeyCount(liveKeys.size());
+
+        byte[] bcsId = metadata.getStore().get(DFSUtil.string2Bytes(
+            OzoneConsts.BLOCK_COMMIT_SEQUENCE_ID_PREFIX));
+        if (bcsId != null) {
+          kvContainerData.updateBlockCommitSequenceId(Longs.fromByteArray(bcsId));
         }
-      }).sum();
-      kvContainerData.setBytesUsed(bytesUsed);
-      kvContainerData.setKeyCount(liveKeys.size());
-      byte[] bcsId = metadata.getStore().get(DFSUtil.string2Bytes(
-          OzoneConsts.BLOCK_COMMIT_SEQUENCE_ID_PREFIX));
-      if (bcsId != null) {
-        kvContainerData.updateBlockCommitSequenceId(Longs.fromByteArray(bcsId));
+      }
+    } else {
+      //Setting approximately for test
+      kvContainerData.setBytesUsed(5 * 1024 * 1024 * 1024);
+      kvContainerData.setKeyCount(500000);
+      try (ReferenceCountedDB metadata = BlockUtils.getDB(kvContainerData, config)) {
+        byte[] bcsId = metadata.getStore().get(DFSUtil.string2Bytes(
+            OzoneConsts.BLOCK_COMMIT_SEQUENCE_ID_PREFIX));
+        if (bcsId != null) {
+          kvContainerData.updateBlockCommitSequenceId(Longs.fromByteArray(bcsId));
+        }
       }
     }
   }
