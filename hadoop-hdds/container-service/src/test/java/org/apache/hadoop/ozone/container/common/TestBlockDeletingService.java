@@ -267,6 +267,7 @@ public class TestBlockDeletingService {
 
 
       // Check finally DB counters.
+      // Not checking bytes used, as handler is a mock call.
       Assert.assertEquals(0, Ints.fromByteArray(
           meta.getStore().get(DB_PENDING_DELETE_BLOCK_COUNT_KEY)));
       Assert.assertEquals(0, Longs.fromByteArray(
