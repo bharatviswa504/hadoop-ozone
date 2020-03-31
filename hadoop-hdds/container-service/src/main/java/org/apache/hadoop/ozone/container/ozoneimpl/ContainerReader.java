@@ -21,7 +21,6 @@ package org.apache.hadoop.ozone.container.ozoneimpl;
 import java.io.File;
 import java.io.FileFilter;
 import java.io.IOException;
-import java.util.List;
 
 import org.apache.hadoop.hdds.conf.ConfigurationSource;
 import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos;
