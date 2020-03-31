@@ -256,6 +256,13 @@ public class KeyValueContainerData extends ContainerData {
     return Collections.unmodifiableList(KV_YAML_FIELDS);
   }
 
+  /**
+   * Update DB counters related to block metadata.
+   * @param db - Reference to container DB.
+   * @param batchOperation - Batch Operation to batch DB operations.
+   * @param deletedBlockCount - Number of blocks deleted.
+   * @throws IOException
+   */
   public void updateAndCommitDBCounters(
       ReferenceCountedDB db, BatchOperation batchOperation,
       int deletedBlockCount) throws IOException {
