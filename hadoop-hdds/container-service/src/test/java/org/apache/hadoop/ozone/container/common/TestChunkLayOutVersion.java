@@ -33,7 +33,7 @@ public class TestChunkLayOutVersion {
 
   @Test
   public void testVersionCount() {
-    assertEquals(2, ChunkLayOutVersion.getAllVersions().size());
+    assertEquals(3, ChunkLayOutVersion.getAllVersions().size());
   }
 
   @Test
