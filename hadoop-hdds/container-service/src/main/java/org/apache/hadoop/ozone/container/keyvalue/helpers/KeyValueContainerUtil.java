@@ -172,7 +172,7 @@ public final class KeyValueContainerUtil {
   /**
    * This method sets block related metadata like block commit sequence id,
    * block count, bytes used and pending delete block count and delete
-   * transaction id for KeyValueContainers with layout version
+   * transaction id for KeyValueContainers with layout version.
    * {@link ChunkLayOutVersion#FILE_PER_BLOCK_AND_CONTAINER_DB_HAS_METADATA}
    * or {@link ChunkLayOutVersion#FILE_PER_CHUNK_AND_CONTAINER_DB_HAS_METADATA}
    * @param kvContainerData
@@ -228,7 +228,7 @@ public final class KeyValueContainerUtil {
   /**
    * This method sets block related metadata like block commit sequence id,
    * block count, bytes used and pending delete block count and delete
-   * transaction id for KeyValueContainers with layout version
+   * transaction id for KeyValueContainers with layout version.
    * {@link ChunkLayOutVersion#FILE_PER_BLOCK} or
    * {@link ChunkLayOutVersion#FILE_PER_CHUNK}
    * @param kvContainerData
