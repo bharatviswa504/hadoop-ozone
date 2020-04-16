@@ -53,6 +53,7 @@ import java.util.concurrent.ExecutionException;
 
 import static org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.Result.UNSUPPORTED_REQUEST;
 import static org.apache.hadoop.ozone.container.common.impl.ChunkLayOutVersion.FILE_PER_BLOCK;
+import static org.apache.hadoop.ozone.container.common.impl.ChunkLayOutVersion.FILE_PER_BLOCK_AND_CONTAINER_DB_HAS_METADATA;
 import static org.apache.hadoop.ozone.container.common.transport.server.ratis.DispatcherContext.WriteChunkStage.COMMIT_DATA;
 import static org.apache.hadoop.ozone.container.keyvalue.helpers.ChunkUtils.validateChunkForOverwrite;
 
@@ -73,7 +74,10 @@ public class FilePerBlockStrategy implements ChunkManager {
 
   private static void checkLayoutVersion(Container container) {
     Preconditions.checkArgument(
-        container.getContainerData().getLayOutVersion() == FILE_PER_BLOCK);
+        container.getContainerData().getLayOutVersion()
+            == FILE_PER_BLOCK ||
+            container.getContainerData().getLayOutVersion() ==
+                FILE_PER_BLOCK_AND_CONTAINER_DB_HAS_METADATA);
   }
 
   @Override

@@ -33,7 +33,7 @@ public class TestChunkLayOutVersion {
 
   @Test
   public void testVersionCount() {
-    assertEquals(3, ChunkLayOutVersion.getAllVersions().size());
+    assertEquals(4, ChunkLayOutVersion.getAllVersions().size());
   }
 
   @Test
@@ -50,6 +50,12 @@ public class TestChunkLayOutVersion {
   @Test
   public void testV3() {
     assertEquals(3,
+        FILE_PER_BLOCK_AND_CONTAINER_DB_HAS_METADATA.getVersion());
+  }
+
+  @Test
+  public void testV4() {
+    assertEquals(4,
         FILE_PER_BLOCK_AND_CONTAINER_DB_HAS_METADATA.getVersion());
   }
 

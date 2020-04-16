@@ -54,13 +54,23 @@ public enum ChunkLayOutVersion {
       return new File(chunkDir, blockID.getLocalID() + ".block");
     }
   },
-  FILE_PER_BLOCK_AND_CONTAINER_DB_HAS_METADATA(3, "One file per block. " +
-      "ContainerDB has block related metadata") {
+  FILE_PER_BLOCK_AND_CONTAINER_DB_HAS_METADATA(3,
+      "One file per block. ContainerDB has block related metadata") {
     @Override
     public File getChunkFile(ContainerData containerData, BlockID blockID,
         ChunkInfo info) throws StorageContainerException {
       File chunkDir = verifyChunkDirExists(containerData);
       return new File(chunkDir, blockID.getLocalID() + ".block");
+    }
+  },
+
+  FILE_PER_CHUNK_AND_CONTAINER_DB_HAS_METADATA(4,
+      "One file per chunk. ContainerDB has block related metadata") {
+    @Override
+    public File getChunkFile(ContainerData containerData, BlockID blockID,
+        ChunkInfo info) throws StorageContainerException {
+      File chunksLoc = verifyChunkDirExists(containerData);
+      return chunksLoc.toPath().resolve(info.getChunkName()).toFile();
     }
   };
 

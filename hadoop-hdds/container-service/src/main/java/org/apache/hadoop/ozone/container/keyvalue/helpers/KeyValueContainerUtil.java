@@ -165,7 +165,7 @@ public final class KeyValueContainerUtil {
         FILE_PER_BLOCK_AND_CONTAINER_DB_HAS_METADATA.getVersion()) {
       setBlockMetadataForBelowVersion3(kvContainerData, config);
     } else {
-      setBlockMetadataForVersion3(kvContainerData, config);
+      setBlockMetadataForVersion3And4(kvContainerData, config);
     }
   }
 
@@ -174,6 +174,7 @@ public final class KeyValueContainerUtil {
    * block count, bytes used and pending delete block count and delete
    * transaction id for KeyValueContainers with layout version
    * {@link ChunkLayOutVersion#FILE_PER_BLOCK_AND_CONTAINER_DB_HAS_METADATA}
+   * or {@link ChunkLayOutVersion#FILE_PER_CHUNK_AND_CONTAINER_DB_HAS_METADATA}
    * @param kvContainerData
    * @param config
    * @throws IOException
@@ -228,7 +229,7 @@ public final class KeyValueContainerUtil {
    * This method sets block related metadata like block commit sequence id,
    * block count, bytes used and pending delete block count and delete
    * transaction id for KeyValueContainers with layout version
-   * {@link ChunkLayOutVersion#FILE_PER_BLOCK} and
+   * {@link ChunkLayOutVersion#FILE_PER_BLOCK} or
    * {@link ChunkLayOutVersion#FILE_PER_CHUNK}
    * @param kvContainerData
    * @param config
