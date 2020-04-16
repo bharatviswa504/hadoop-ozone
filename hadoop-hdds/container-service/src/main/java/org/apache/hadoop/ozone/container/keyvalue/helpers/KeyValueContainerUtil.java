@@ -19,17 +19,14 @@ package org.apache.hadoop.ozone.container.keyvalue.helpers;
 
 import java.io.File;
 import java.io.IOException;
-
 import java.util.List;
 
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 
 import org.apache.hadoop.hdds.conf.ConfigurationSource;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos;
 import org.apache.hadoop.hdds.utils.MetadataKeyFilters;
-import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.ozone.OzoneConsts;
 import org.apache.hadoop.ozone.container.common.helpers.BlockData;
 import org.apache.hadoop.ozone.container.common.helpers.ChunkInfo;
@@ -254,16 +251,16 @@ public final class KeyValueContainerUtil {
       kvContainerData.incrPendingDeletionBlocks(numPendingDeletionBlocks);
 
       // Set delete transaction id.
-      byte[] delTxnId = containerDB.getStore().get(
-          DFSUtil.string2Bytes(OzoneConsts.DELETE_TRANSACTION_KEY_PREFIX));
+      byte[] delTxnId =
+          containerDB.getStore().get(DB_CONTAINER_DELETE_TRANSACTION_KEY);
       if (delTxnId != null) {
         kvContainerData
             .updateDeleteTransactionId(Longs.fromByteArray(delTxnId));
       }
 
       // Set BlockCommitSequenceId.
-      byte[] bcsId = containerDB.getStore().get(DFSUtil.string2Bytes(
-          OzoneConsts.BLOCK_COMMIT_SEQUENCE_ID_PREFIX));
+      byte[] bcsId = containerDB.getStore().get(
+          DB_BLOCK_COMMIT_SEQUENCE_ID_KEY);
       if (bcsId != null) {
         kvContainerData
             .updateBlockCommitSequenceId(Longs.fromByteArray(bcsId));
