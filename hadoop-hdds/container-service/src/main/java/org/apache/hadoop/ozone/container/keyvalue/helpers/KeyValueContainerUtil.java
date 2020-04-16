@@ -19,13 +19,23 @@ package org.apache.hadoop.ozone.container.keyvalue.helpers;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+
+import java.util.List;
 
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
+
 import org.apache.hadoop.hdds.conf.ConfigurationSource;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos;
+import org.apache.hadoop.hdds.utils.MetadataKeyFilters;
+import org.apache.hadoop.hdfs.DFSUtil;
+import org.apache.hadoop.ozone.OzoneConsts;
+import org.apache.hadoop.ozone.container.common.helpers.BlockData;
+import org.apache.hadoop.ozone.container.common.helpers.ChunkInfo;
 import org.apache.hadoop.ozone.container.common.helpers.ContainerUtils;
+import org.apache.hadoop.ozone.container.common.impl.ChunkLayOutVersion;
+import org.apache.hadoop.ozone.container.keyvalue.KeyValueBlockIterator;
 import org.apache.hadoop.ozone.container.keyvalue.KeyValueContainerData;
 import org.apache.hadoop.hdds.utils.MetadataStore;
 import org.apache.hadoop.hdds.utils.MetadataStoreBuilder;
@@ -41,6 +51,7 @@ import static org.apache.hadoop.ozone.OzoneConsts.DB_BLOCK_COUNT_KEY;
 import static org.apache.hadoop.ozone.OzoneConsts.DB_CONTAINER_BYTES_USED_KEY;
 import static org.apache.hadoop.ozone.OzoneConsts.DB_CONTAINER_DELETE_TRANSACTION_KEY;
 import static org.apache.hadoop.ozone.OzoneConsts.DB_PENDING_DELETE_BLOCK_COUNT_KEY;
+import static org.apache.hadoop.ozone.container.common.impl.ChunkLayOutVersion.FILE_PER_BLOCK_AND_CONTAINER_DB_HAS_METADATA;
 
 /**
  * Class which defines utility methods for KeyValueContainer.
@@ -153,7 +164,27 @@ public final class KeyValueContainerUtil {
     }
     kvContainerData.setDbFile(dbFile);
 
-    try(ReferenceCountedDB containerDB = BlockUtils.getDB(kvContainerData,
+    if (kvContainerData.getLayOutVersion().getVersion() <
+        FILE_PER_BLOCK_AND_CONTAINER_DB_HAS_METADATA.getVersion()) {
+      setBlockMetadataForBelowVersion3(kvContainerData, config);
+    } else {
+      setBlockMetadataForVersion3(kvContainerData, config);
+    }
+  }
+
+  /**
+   * This method sets block related metadata like block commit sequence id,
+   * block count, bytes used and pending delete block count and delete
+   * transaction id for KeyValueContainers with layout version
+   * {@link ChunkLayOutVersion#FILE_PER_BLOCK_AND_CONTAINER_DB_HAS_METADATA}
+   * @param kvContainerData
+   * @param config
+   * @throws IOException
+   */
+  private static void setBlockMetadataForVersion3(
+      KeyValueContainerData kvContainerData, ConfigurationSource config)
+      throws IOException {
+    try (ReferenceCountedDB containerDB = BlockUtils.getDB(kvContainerData,
         config)) {
 
       // Set pending deleted block count.
@@ -197,33 +228,82 @@ public final class KeyValueContainerUtil {
   }
 
   /**
-   * Returns the path where data or chunks live for a given container.
-   *
-   * @param kvContainerData - KeyValueContainerData
-   * @return - Path to the chunks directory
+   * This method sets block related metadata like block commit sequence id,
+   * block count, bytes used and pending delete block count and delete
+   * transaction id for KeyValueContainers with layout version
+   * {@link ChunkLayOutVersion#FILE_PER_BLOCK} and
+   * {@link ChunkLayOutVersion#FILE_PER_CHUNK}
+   * @param kvContainerData
+   * @param config
+   * @throws IOException
    */
-  public static Path getDataDirectory(KeyValueContainerData kvContainerData) {
+  private static void setBlockMetadataForBelowVersion3(
+      KeyValueContainerData kvContainerData, ConfigurationSource config)
+      throws IOException{
+    try(ReferenceCountedDB containerDB = BlockUtils.getDB(kvContainerData,
+        config)) {
 
-    String chunksPath = kvContainerData.getChunksPath();
-    Preconditions.checkNotNull(chunksPath);
+      // Set pending deleted block count.
+      MetadataKeyFilters.KeyPrefixFilter filter =
+          new MetadataKeyFilters.KeyPrefixFilter()
+              .addFilter(OzoneConsts.DELETING_KEY_PREFIX);
+      int numPendingDeletionBlocks =
+          containerDB.getStore().getSequentialRangeKVs(null,
+              Integer.MAX_VALUE, filter)
+              .size();
+      kvContainerData.incrPendingDeletionBlocks(numPendingDeletionBlocks);
 
-    return Paths.get(chunksPath);
+      // Set delete transaction id.
+      byte[] delTxnId = containerDB.getStore().get(
+          DFSUtil.string2Bytes(OzoneConsts.DELETE_TRANSACTION_KEY_PREFIX));
+      if (delTxnId != null) {
+        kvContainerData
+            .updateDeleteTransactionId(Longs.fromByteArray(delTxnId));
+      }
+
+      // Set BlockCommitSequenceId.
+      byte[] bcsId = containerDB.getStore().get(DFSUtil.string2Bytes(
+          OzoneConsts.BLOCK_COMMIT_SEQUENCE_ID_PREFIX));
+      if (bcsId != null) {
+        kvContainerData
+            .updateBlockCommitSequenceId(Longs.fromByteArray(bcsId));
+      }
+
+      initializeUsedBytesAndBlockCount(kvContainerData);
+    }
   }
 
   /**
-   * Container metadata directory -- here is where the level DB and
-   * .container file lives.
-   *
-   * @param kvContainerData - KeyValueContainerData
-   * @return Path to the metadata directory
+   * Initialize bytes used and block count.
+   * @param kvContainerData
+   * @throws IOException
    */
-  public static Path getMetadataDirectory(
-      KeyValueContainerData kvContainerData) {
+  private static void initializeUsedBytesAndBlockCount(
+      KeyValueContainerData kvContainerData) throws IOException {
 
-    String metadataPath = kvContainerData.getMetadataPath();
-    Preconditions.checkNotNull(metadataPath);
+    long blockCount = 0;
+    try (KeyValueBlockIterator blockIter = new KeyValueBlockIterator(
+        kvContainerData.getContainerID(),
+        new File(kvContainerData.getContainerPath()))) {
+      long usedBytes = 0;
 
-    return Paths.get(metadataPath);
 
+      while (blockIter.hasNext()) {
+        BlockData block = blockIter.nextBlock();
+        long blockLen = 0;
+
+        List< ContainerProtos.ChunkInfo> chunkInfoList = block.getChunks();
+        for (ContainerProtos.ChunkInfo chunk : chunkInfoList) {
+          ChunkInfo info = ChunkInfo.getFromProtoBuf(chunk);
+          blockLen += info.getLen();
+        }
+
+        usedBytes += blockLen;
+        blockCount++;
+      }
+
+      kvContainerData.setBytesUsed(usedBytes);
+      kvContainerData.setKeyCount(blockCount);
+    }
   }
 }

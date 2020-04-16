@@ -42,6 +42,7 @@ import java.util.Map;
 
 import static org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.Result.UNSUPPORTED_REQUEST;
 import static org.apache.hadoop.ozone.container.common.impl.ChunkLayOutVersion.FILE_PER_BLOCK;
+import static org.apache.hadoop.ozone.container.common.impl.ChunkLayOutVersion.FILE_PER_BLOCK_AND_CONTAINER_DB_HAS_METADATA;
 import static org.apache.hadoop.ozone.container.common.impl.ChunkLayOutVersion.FILE_PER_CHUNK;
 
 /**
@@ -58,6 +59,8 @@ public class ChunkManagerDispatcher implements ChunkManager {
   ChunkManagerDispatcher(boolean sync) {
     handlers.put(FILE_PER_CHUNK, new FilePerChunkStrategy(sync));
     handlers.put(FILE_PER_BLOCK, new FilePerBlockStrategy(sync));
+    handlers.put(FILE_PER_BLOCK_AND_CONTAINER_DB_HAS_METADATA,
+        new FilePerBlockStrategy(sync));
   }
 
   @Override

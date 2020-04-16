@@ -744,7 +744,7 @@
   </property>
   <property>
     <name>ozone.scm.chunk.layout</name>
-    <value>FILE_PER_BLOCK</value>
+    <value>FILE_PER_BLOCK_AND_CONTAINER_DB_HAS_METADATA</value>
     <tag>OZONE, SCM, CONTAINER, PERFORMANCE</tag>
     <description>
       Chunk layout defines how chunks, blocks and containers are stored on disk.
