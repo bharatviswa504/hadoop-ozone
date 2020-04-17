@@ -44,6 +44,7 @@ import static org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.Res
 import static org.apache.hadoop.ozone.container.common.impl.ChunkLayOutVersion.FILE_PER_BLOCK;
 import static org.apache.hadoop.ozone.container.common.impl.ChunkLayOutVersion.FILE_PER_BLOCK_AND_CONTAINER_DB_HAS_METADATA;
 import static org.apache.hadoop.ozone.container.common.impl.ChunkLayOutVersion.FILE_PER_CHUNK;
+import static org.apache.hadoop.ozone.container.common.impl.ChunkLayOutVersion.FILE_PER_CHUNK_AND_CONTAINER_DB_HAS_METADATA;
 
 /**
  * Selects ChunkManager implementation to use for each chunk operation.
@@ -61,6 +62,8 @@ public class ChunkManagerDispatcher implements ChunkManager {
     handlers.put(FILE_PER_BLOCK, new FilePerBlockStrategy(sync));
     handlers.put(FILE_PER_BLOCK_AND_CONTAINER_DB_HAS_METADATA,
         new FilePerBlockStrategy(sync));
+    handlers.put(FILE_PER_CHUNK_AND_CONTAINER_DB_HAS_METADATA,
+        new FilePerChunkStrategy(sync));
   }
 
   @Override

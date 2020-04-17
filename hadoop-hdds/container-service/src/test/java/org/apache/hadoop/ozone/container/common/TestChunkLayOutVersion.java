@@ -24,6 +24,7 @@ import org.junit.Test;
 import static org.apache.hadoop.ozone.container.common.impl.ChunkLayOutVersion.FILE_PER_BLOCK;
 import static org.apache.hadoop.ozone.container.common.impl.ChunkLayOutVersion.FILE_PER_BLOCK_AND_CONTAINER_DB_HAS_METADATA;
 import static org.apache.hadoop.ozone.container.common.impl.ChunkLayOutVersion.FILE_PER_CHUNK;
+import static org.apache.hadoop.ozone.container.common.impl.ChunkLayOutVersion.FILE_PER_CHUNK_AND_CONTAINER_DB_HAS_METADATA;
 import static org.junit.Assert.assertEquals;
 
 /**
@@ -56,7 +57,7 @@ public class TestChunkLayOutVersion {
   @Test
   public void testV4() {
     assertEquals(4,
-        FILE_PER_BLOCK_AND_CONTAINER_DB_HAS_METADATA.getVersion());
+        FILE_PER_CHUNK_AND_CONTAINER_DB_HAS_METADATA.getVersion());
   }
 
 }

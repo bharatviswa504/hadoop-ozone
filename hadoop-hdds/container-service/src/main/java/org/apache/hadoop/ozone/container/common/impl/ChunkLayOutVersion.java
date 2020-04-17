@@ -116,9 +116,26 @@ public enum ChunkLayOutVersion {
   public static ChunkLayOutVersion getConfiguredVersion(
       ConfigurationSource conf) {
     try {
-      return conf.getEnum(ScmConfigKeys.OZONE_SCM_CHUNK_LAYOUT_KEY,
+      ChunkLayOutVersion chunkLayOutVersion =
+          conf.getEnum(ScmConfigKeys.OZONE_SCM_CHUNK_LAYOUT_KEY,
           DEFAULT_LAYOUT);
+
+      if (ChunkLayOutVersion.FILE_PER_BLOCK == chunkLayOutVersion) {
+        LOG.warn("Using older version of ChunkLayoutVersion {}. Use new " +
+            "version {} which stores file per block along with block metadata" +
+            " in DB. This will help in reducing DN startup time.",
+            FILE_PER_BLOCK, FILE_PER_BLOCK_AND_CONTAINER_DB_HAS_METADATA);
+        return chunkLayOutVersion;
+      } else if (ChunkLayOutVersion.FILE_PER_CHUNK == chunkLayOutVersion) {
+        LOG.warn("Using older version of ChunkLayoutVersion {}. Use new " +
+            "version {} which stores file per chunk along with block metadata" +
+            " in DB. This will help in reducing DN startup time.",
+            FILE_PER_CHUNK, FILE_PER_CHUNK_AND_CONTAINER_DB_HAS_METADATA);
+        return chunkLayOutVersion;
+      }
     } catch (IllegalArgumentException e) {
+      LOG.warn("Unrecognized value set for {}. Using Default {}",
+          ScmConfigKeys.OZONE_SCM_CHUNK_LAYOUT_KEY, DEFAULT_LAYOUT);
       return DEFAULT_LAYOUT;
     }
   }

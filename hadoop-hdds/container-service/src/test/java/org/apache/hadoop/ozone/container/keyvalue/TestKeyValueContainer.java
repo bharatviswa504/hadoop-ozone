@@ -65,6 +65,8 @@ import java.util.List;
 import java.util.UUID;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.apache.hadoop.ozone.OzoneConsts.DB_BLOCK_COUNT_KEY;
+import static org.apache.hadoop.ozone.OzoneConsts.DB_CONTAINER_BYTES_USED_KEY;
 import static org.apache.ratis.util.Preconditions.assertTrue;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -151,6 +153,7 @@ public class TestKeyValueContainer {
   private void addBlocks(int count) throws Exception {
     long containerId = keyValueContainerData.getContainerID();
 
+    int blockLength = 1024;
     try(ReferenceCountedDB metadataStore = BlockUtils.getDB(keyValueContainer
         .getContainerData(), conf)) {
       for (int i = 0; i < count; i++) {
@@ -162,13 +165,20 @@ public class TestKeyValueContainer {
             OzoneConsts.OZONE_SIMPLE_HDFS_USER);
         List<ContainerProtos.ChunkInfo> chunkList = new ArrayList<>();
         ChunkInfo info = new ChunkInfo(String.format("%d.data.%d", blockID
-            .getLocalID(), 0), 0, 1024);
+            .getLocalID(), 0), 0, blockLength);
         chunkList.add(info.getProtoBufMessage());
         blockData.setChunks(chunkList);
         metadataStore.getStore().put(Longs.toByteArray(blockID.getLocalID()),
             blockData
             .getProtoBufMessage().toByteArray());
       }
+
+      keyValueContainerData.setBytesUsed(blockLength * count);
+      keyValueContainerData.setKeyCount(count);
+      metadataStore.getStore().put(DB_CONTAINER_BYTES_USED_KEY,
+          Longs.toByteArray(blockLength * count));
+      metadataStore.getStore().put(DB_BLOCK_COUNT_KEY,
+          Longs.toByteArray(count));
     }
   }
 
@@ -209,18 +219,7 @@ public class TestKeyValueContainer {
 
     int numberOfKeysToWrite = 12;
     //write one few keys to check the key count after import
-    try(ReferenceCountedDB metadataStore =
-        BlockUtils.getDB(keyValueContainerData, conf)) {
-      for (int i = 0; i < numberOfKeysToWrite; i++) {
-        metadataStore.getStore().put(("test" + i).getBytes(UTF_8),
-            "test".getBytes(UTF_8));
-      }
-
-      // As now when we put blocks, we increment block count and update in DB.
-      // As for test, we are doing manually so adding key count to DB.
-      metadataStore.getStore().put(OzoneConsts.DB_BLOCK_COUNT_KEY,
-          Longs.toByteArray(numberOfKeysToWrite));
-    }
+    addBlocks(numberOfKeysToWrite);
     BlockUtils.removeDB(keyValueContainerData, conf);
 
     Map<String, String> metadata = new HashMap<>();
