@@ -64,7 +64,6 @@ import java.util.Map;
 import java.util.List;
 import java.util.UUID;
 
-import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.apache.hadoop.ozone.OzoneConsts.DB_BLOCK_COUNT_KEY;
 import static org.apache.hadoop.ozone.OzoneConsts.DB_CONTAINER_BYTES_USED_KEY;
 import static org.apache.ratis.util.Preconditions.assertTrue;
