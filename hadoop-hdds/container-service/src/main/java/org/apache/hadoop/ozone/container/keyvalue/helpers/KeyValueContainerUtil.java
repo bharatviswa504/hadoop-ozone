@@ -286,20 +286,29 @@ public final class KeyValueContainerUtil {
       long usedBytes = 0;
 
 
-      while (blockIter.hasNext()) {
-        BlockData block = blockIter.nextBlock();
-        long blockLen = 0;
+      boolean success = true;
+      while (success) {
+        try {
+          if (blockIter.hasNext()) {
+            BlockData block = blockIter.nextBlock();
+            long blockLen = 0;
 
-        List< ContainerProtos.ChunkInfo> chunkInfoList = block.getChunks();
-        for (ContainerProtos.ChunkInfo chunk : chunkInfoList) {
-          ChunkInfo info = ChunkInfo.getFromProtoBuf(chunk);
-          blockLen += info.getLen();
+            List< ContainerProtos.ChunkInfo > chunkInfoList = block.getChunks();
+            for (ContainerProtos.ChunkInfo chunk : chunkInfoList) {
+              ChunkInfo info = ChunkInfo.getFromProtoBuf(chunk);
+              blockLen += info.getLen();
+            }
+
+            usedBytes += blockLen;
+            blockCount++;
+          } else {
+            success = false;
+          }
+        } catch (IOException ex) {
+          LOG.error("Failed to parse block data for Container {}",
+              kvContainerData.getContainerID());
         }
-
-        usedBytes += blockLen;
-        blockCount++;
       }
-
       kvContainerData.setBytesUsed(usedBytes);
       kvContainerData.setKeyCount(blockCount);
     }
