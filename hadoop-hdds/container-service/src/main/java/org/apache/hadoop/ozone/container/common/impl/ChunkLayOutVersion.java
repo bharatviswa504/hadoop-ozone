@@ -133,6 +133,7 @@ public enum ChunkLayOutVersion {
             FILE_PER_CHUNK, FILE_PER_CHUNK_AND_CONTAINER_DB_HAS_METADATA);
         return chunkLayOutVersion;
       }
+      return chunkLayOutVersion;
     } catch (IllegalArgumentException e) {
       LOG.warn("Unrecognized value set for {}. Using Default {}",
           ScmConfigKeys.OZONE_SCM_CHUNK_LAYOUT_KEY, DEFAULT_LAYOUT);
