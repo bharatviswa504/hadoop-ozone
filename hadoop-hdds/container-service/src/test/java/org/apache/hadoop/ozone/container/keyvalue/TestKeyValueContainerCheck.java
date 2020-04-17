@@ -96,7 +96,7 @@ import static org.junit.Assert.assertFalse;
         {OZONE_METADATA_STORE_IMPL_LEVELDB, ChunkLayoutTestInfo.FILE_PER_CHUNK},
         {OZONE_METADATA_STORE_IMPL_LEVELDB, ChunkLayoutTestInfo.FILE_PER_BLOCK},
         {OZONE_METADATA_STORE_IMPL_ROCKSDB, ChunkLayoutTestInfo.FILE_PER_CHUNK},
-        {OZONE_METADATA_STORE_IMPL_ROCKSDB, ChunkLayoutTestInfo.FILE_PER_BLOCK},
+        {OZONE_METADATA_STORE_IMPL_ROCKSDB, ChunkLayoutTestInfo.FILE_PER_BLOCK}
     });
   }
 
