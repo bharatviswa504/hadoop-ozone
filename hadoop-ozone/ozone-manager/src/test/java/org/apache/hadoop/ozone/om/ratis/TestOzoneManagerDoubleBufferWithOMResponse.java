@@ -104,7 +104,7 @@ public class TestOzoneManagerDoubleBufferWithOMResponse {
       lastAppliedIndex = index.get(index.size() - 1);
     };
     doubleBuffer = new OzoneManagerDoubleBuffer(omMetadataManager,
-        ozoneManagerRatisSnapshot);
+        ozoneManagerRatisSnapshot, false);
     ozoneManagerDoubleBufferHelper = doubleBuffer::add;
   }
 

@@ -81,7 +81,7 @@ public class OzoneManagerStateMachine extends BaseStateMachine {
   private final OzoneManager ozoneManager;
   private RequestHandler handler;
   private RaftGroupId raftGroupId;
-  private OzoneManagerDoubleBuffer ozoneManagerDoubleBuffer;
+  private OzoneManagerDoubleBuffer  ozoneManagerDoubleBuffer;
   private final OMRatisSnapshotInfo snapshotInfo;
   private final ExecutorService executorService;
   private final ExecutorService installSnapshotExecutor;
@@ -106,7 +106,7 @@ public class OzoneManagerStateMachine extends BaseStateMachine {
 
     this.ozoneManagerDoubleBuffer =
         new OzoneManagerDoubleBuffer(ozoneManager.getMetadataManager(),
-            this::updateLastAppliedIndex);
+            this::updateLastAppliedIndex, this::getTermForIndex);
 
     this.handler = new OzoneManagerRequestHandler(ozoneManager,
         ozoneManagerDoubleBuffer);
@@ -319,7 +319,7 @@ public class OzoneManagerStateMachine extends BaseStateMachine {
     lifeCycle.startAndTransition(() -> {
       this.ozoneManagerDoubleBuffer =
           new OzoneManagerDoubleBuffer(ozoneManager.getMetadataManager(),
-              this::updateLastAppliedIndex);
+              this::updateLastAppliedIndex, this::getTermForIndex);
       handler.updateDoubleBuffer(ozoneManagerDoubleBuffer);
       this.setLastAppliedTermIndex(TermIndex.newTermIndex(
           newLastAppliedSnapShotTermIndex, newLastAppliedSnaphsotIndex));
@@ -550,5 +550,14 @@ public class OzoneManagerStateMachine extends BaseStateMachine {
   @VisibleForTesting
   void addApplyTransactionTermIndex(long term, long index) {
     applyTransactionMap.put(index, term);
+  }
+
+  /**
+   * Return term associated with transaction index.
+   * @param transactionIndex
+   * @return
+   */
+  public long getTermForIndex(long transactionIndex) {
+    return applyTransactionMap.get(transactionIndex);
   }
 }

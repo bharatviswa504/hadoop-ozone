@@ -25,6 +25,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -39,6 +40,8 @@ import org.apache.hadoop.ozone.om.response.OMClientResponse;
 import org.apache.hadoop.util.Daemon;
 import org.apache.hadoop.hdds.utils.db.BatchOperation;
 import org.apache.ratis.util.ExitUtils;
+
+import static org.apache.hadoop.ozone.OzoneConsts.TRANSACTION_INFO_KEY;
 
 /**
  * This class implements DoubleBuffer implementation of OMClientResponse's. In
@@ -86,10 +89,10 @@ public class OzoneManagerDoubleBuffer {
 
   private final boolean isRatisEnabled;
 
-  public OzoneManagerDoubleBuffer(OMMetadataManager omMetadataManager,
-      OzoneManagerRatisSnapshot ozoneManagerRatisSnapShot) {
-    this(omMetadataManager, ozoneManagerRatisSnapShot, true);
-  }
+  /**
+   * function which will get term associated with the transaction index.
+   */
+  private Function<Long, Long> termGet = null;
 
   public OzoneManagerDoubleBuffer(OMMetadataManager omMetadataManager,
       OzoneManagerRatisSnapshot ozoneManagerRatisSnapShot,
@@ -120,8 +123,12 @@ public class OzoneManagerDoubleBuffer {
 
   }
 
-
-
+  public OzoneManagerDoubleBuffer(OMMetadataManager omMetadataManager,
+      OzoneManagerRatisSnapshot ozoneManagerRatisSnapShot,
+      Function<Long, Long> termGet) {
+    this(omMetadataManager, ozoneManagerRatisSnapShot, true);
+    this.termGet = termGet;
+  }
 
   /**
    * Runs in a background thread and batches the transaction in currentBuffer
@@ -132,6 +139,7 @@ public class OzoneManagerDoubleBuffer {
       try {
         if (canFlush()) {
           setReadyBuffer();
+          List<Long> flushedEpochs = null;
           try(BatchOperation batchOperation = omMetadataManager.getStore()
               .initBatchOperation()) {
 
@@ -146,6 +154,21 @@ public class OzoneManagerDoubleBuffer {
               }
             });
 
+
+
+            // Only when ratis is enabled commit transaction info to DB.
+            if (isRatisEnabled) {
+              flushedEpochs =
+                  readyBuffer.stream().map(DoubleBufferEntry::getTrxLogIndex)
+                      .sorted().collect(Collectors.toList());
+              long lastRatisTransactionIndex =
+                  flushedEpochs.get(flushedEpochs.size() - 1);
+              long term = termGet.apply(lastRatisTransactionIndex);
+              omMetadataManager.getTransactionInfoTable().putWithBatch(
+                  batchOperation, TRANSACTION_INFO_KEY,
+                  OMTransactionInfo.generateTransactionInfo(term,
+                      lastRatisTransactionIndex));
+            }
             long startTime = Time.monotonicNowNanos();
             omMetadataManager.getStore().commitBatchOperation(batchOperation);
             ozoneManagerDoubleBufferMetrics.updateFlushTime(
@@ -173,17 +196,19 @@ public class OzoneManagerDoubleBuffer {
                 flushedTransactionsSize);
           }
 
-          long lastRatisTransactionIndex =
-              readyBuffer.stream().map(DoubleBufferEntry::getTrxLogIndex)
-                  .max(Long::compareTo).get();
+          // When non-HA do this step here, as the sorted is not require in
+          // flush to DB. As in non-HA We want to complete futures as quick
+          // as possible after flush to DB, to release rpc handler threads.
+          if (!isRatisEnabled) {
+            flushedEpochs =
+                readyBuffer.stream().map(DoubleBufferEntry::getTrxLogIndex)
+                    .sorted().collect(Collectors.toList());
+          }
 
-          List<Long> flushedEpochs =
-              readyBuffer.stream().map(DoubleBufferEntry::getTrxLogIndex)
-                  .sorted().collect(Collectors.toList());
-
+          // Clean up cache
           cleanupCache(flushedEpochs);
 
-
+          // Clean up committed transactions.
           readyBuffer.clear();
 
           // update the last updated index in OzoneManagerStateMachine.
