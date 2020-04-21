@@ -25,6 +25,7 @@ import org.apache.hadoop.hdds.utils.db.cache.CacheValue;
 import org.apache.hadoop.ozone.om.helpers.OmBucketInfo;
 import org.apache.hadoop.ozone.om.helpers.OmKeyInfo;
 import org.apache.hadoop.ozone.om.helpers.OmVolumeArgs;
+import org.apache.hadoop.ozone.om.ratis.OMTransactionInfo;
 import org.apache.hadoop.ozone.om.request.TestOMRequestUtils;
 import org.junit.Assert;
 import org.junit.Before;
@@ -35,7 +36,9 @@ import org.junit.rules.TemporaryFolder;
 import java.util.List;
 import java.util.TreeSet;
 
+import static org.apache.hadoop.ozone.OzoneConsts.TRANSACTION_INFO_KEY;
 import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_OM_DB_DIRS;
+import static org.junit.Assert.fail;
 
 /**
  * Tests OzoneManager MetadataManager.
@@ -55,6 +58,47 @@ public class TestOmMetadataManager {
     ozoneConfiguration.set(OZONE_OM_DB_DIRS,
         folder.getRoot().getAbsolutePath());
     omMetadataManager = new OmMetadataManagerImpl(ozoneConfiguration);
+  }
+
+  @Test
+  public void testTransactionTable() throws Exception {
+    omMetadataManager.getTransactionInfoTable().put(TRANSACTION_INFO_KEY,
+        OMTransactionInfo.generateTransactionInfo(1, 100));
+
+    omMetadataManager.getTransactionInfoTable().put(TRANSACTION_INFO_KEY,
+        OMTransactionInfo.generateTransactionInfo(2, 200));
+
+    omMetadataManager.getTransactionInfoTable().put(TRANSACTION_INFO_KEY,
+        OMTransactionInfo.generateTransactionInfo(3, 250));
+
+    String transactionInfo =
+        omMetadataManager.getTransactionInfoTable().get(TRANSACTION_INFO_KEY);
+
+    OMTransactionInfo omTransactionInfo =
+        new OMTransactionInfo(transactionInfo);
+
+    Assert.assertEquals(3, omTransactionInfo.getCurrentTerm());
+    Assert.assertEquals(250, omTransactionInfo.getTransactionIndex());
+
+
+  }
+
+
+  @Test
+  public void testTransactionTableIncorrectValue() throws Exception {
+    omMetadataManager.getTransactionInfoTable().put(TRANSACTION_INFO_KEY,
+        String.valueOf(100));
+
+    String transactionInfo =
+        omMetadataManager.getTransactionInfoTable().get(TRANSACTION_INFO_KEY);
+
+    try {
+      OMTransactionInfo omTransactionInfo =
+          new OMTransactionInfo(transactionInfo);
+      fail("testTransactionTableIncorrectValue");
+    } catch (IllegalStateException ex) {
+      Assert.assertTrue(ex.getMessage().contains("Incorrect TransactionInfo"));
+    }
   }
 
   @Test

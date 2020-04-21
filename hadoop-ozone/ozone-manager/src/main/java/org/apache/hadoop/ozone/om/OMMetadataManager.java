@@ -328,6 +328,8 @@ public interface OMMetadataManager {
    */
   Table<String, S3SecretValue> getS3SecretTable();
 
+  Table<String, String> getTransactionInfoTable();
+
   /**
    * Returns number of rows in a table.  This should not be used for very
    * large tables.
