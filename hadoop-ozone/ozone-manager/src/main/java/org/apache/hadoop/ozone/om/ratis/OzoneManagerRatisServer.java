@@ -335,7 +335,7 @@ public final class OzoneManagerRatisServer {
   /**
    * Initializes and returns OzoneManager StateMachine.
    */
-  private OzoneManagerStateMachine getStateMachine() {
+  private OzoneManagerStateMachine getStateMachine() throws IOException {
     return new OzoneManagerStateMachine(this);
   }
 
@@ -520,13 +520,11 @@ public final class OzoneManagerRatisServer {
     this.roleCheckInitialDelayMs = leaderElectionMinTimeout
         .toLong(TimeUnit.MILLISECONDS);
 
-    long snapshotAutoTriggerThreshold = conf.getLong(
-        OMConfigKeys.OZONE_OM_RATIS_SNAPSHOT_AUTO_TRIGGER_THRESHOLD_KEY,
-        OMConfigKeys.OZONE_OM_RATIS_SNAPSHOT_AUTO_TRIGGER_THRESHOLD_DEFAULT);
+    // Set auto trigger snapshot. We don't need auto trigger threshold in OM,
+    // as last applied index is flushed during double buffer flush
+    // automatically. This is the value used as snapshot value after restart.
     RaftServerConfigKeys.Snapshot.setAutoTriggerEnabled(
         properties, true);
-    RaftServerConfigKeys.Snapshot.setAutoTriggerThreshold(
-        properties, snapshotAutoTriggerThreshold);
 
     return properties;
   }

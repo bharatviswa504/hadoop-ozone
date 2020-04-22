@@ -38,15 +38,14 @@ import org.apache.hadoop.ozone.om.ha.OMNodeDetails;
 import static java.net.HttpURLConnection.HTTP_CREATED;
 import static java.net.HttpURLConnection.HTTP_OK;
 import org.apache.commons.io.FileUtils;
-import static org.apache.hadoop.ozone.OzoneConsts.OM_RATIS_SNAPSHOT_INDEX;
-import static org.apache.hadoop.ozone.OzoneConsts.OM_RATIS_SNAPSHOT_TERM;
+
+import static org.apache.hadoop.ozone.OzoneConsts.OM_DB_NAME;
 import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_OM_SNAPSHOT_PROVIDER_CONNECTION_TIMEOUT_DEFAULT;
 import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_OM_SNAPSHOT_PROVIDER_CONNECTION_TIMEOUT_KEY;
 import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_OM_SNAPSHOT_PROVIDER_REQUEST_TIMEOUT_DEFAULT;
 import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_OM_SNAPSHOT_PROVIDER_REQUEST_TIMEOUT_KEY;
 import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_OM_SNAPSHOT_PROVIDER_SOCKET_TIMEOUT_DEFAULT;
 import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_OM_SNAPSHOT_PROVIDER_SOCKET_TIMEOUT_KEY;
-import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.HttpClient;
@@ -72,8 +71,6 @@ public class OzoneManagerSnapshotProvider {
   private final HttpConfig.Policy httpPolicy;
   private final RequestConfig httpRequestConfig;
   private CloseableHttpClient httpClient;
-
-  private static final String OM_SNAPSHOT_DB = "om.snapshot.db";
 
   public OzoneManagerSnapshotProvider(ConfigurationSource conf,
       File omRatisSnapshotDir, List<OMNodeDetails> peerNodes) {
@@ -151,7 +148,9 @@ public class OzoneManagerSnapshotProvider {
    */
   public DBCheckpoint getOzoneManagerDBSnapshot(String leaderOMNodeID)
       throws IOException {
-    String snapshotFileName = OM_SNAPSHOT_DB + "_" + System.currentTimeMillis();
+    String snapshotTime = Long.toString(System.currentTimeMillis());
+    String snapshotFileName = Paths.get(omSnapshotDir.getAbsolutePath(),
+        snapshotTime, OM_DB_NAME).toFile().getAbsolutePath();
     File targetFile = new File(omSnapshotDir, snapshotFileName + ".tar.gz");
 
     String omCheckpointUrl = peerNodesMap.get(leaderOMNodeID)
@@ -168,38 +167,19 @@ public class OzoneManagerSnapshotProvider {
 
       if ((errorCode == HTTP_OK) || (errorCode == HTTP_CREATED)) {
 
-        Header header = response.getFirstHeader(OM_RATIS_SNAPSHOT_INDEX);
-        if (header == null) {
-          throw new IOException("The HTTP response header " +
-              OM_RATIS_SNAPSHOT_INDEX + " is missing.");
-        }
-
-        long snapshotIndex = Long.parseLong(header.getValue());
-
-        header = response.getFirstHeader(OM_RATIS_SNAPSHOT_TERM);
-        if (header == null) {
-          throw new IOException("The HTTP response header " +
-              OM_RATIS_SNAPSHOT_TERM + " is missing.");
-        }
-
-        long snapshotTerm = Long.parseLong(header.getValue());
-
         try (InputStream inputStream = entity.getContent()) {
           FileUtils.copyInputStreamToFile(inputStream, targetFile);
         }
 
         // Untar the checkpoint file.
-        Path untarredDbDir = Paths.get(omSnapshotDir.getAbsolutePath(),
-            snapshotFileName);
+        Path untarredDbDir = Paths.get(snapshotFileName);
         FileUtil.unTar(targetFile, untarredDbDir.toFile());
         FileUtils.deleteQuietly(targetFile);
 
-        LOG.info("Sucessfully downloaded latest checkpoint with snapshot " +
-            "index {} from leader OM: {}",  snapshotIndex, leaderOMNodeID);
+        LOG.info("Sucessfully downloaded latest checkpoint from leader OM: " +
+            "{}",  leaderOMNodeID);
 
         RocksDBCheckpoint omCheckpoint = new RocksDBCheckpoint(untarredDbDir);
-        omCheckpoint.setRatisSnapshotIndex(snapshotIndex);
-        omCheckpoint.setRatisSnapshotTerm(snapshotTerm);
         return omCheckpoint;
       }
 

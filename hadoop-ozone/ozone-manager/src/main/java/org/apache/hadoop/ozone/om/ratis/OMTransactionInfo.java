@@ -19,7 +19,12 @@
 package org.apache.hadoop.ozone.om.ratis;
 
 import com.google.common.base.Preconditions;
-import org.apache.hadoop.ozone.OzoneConsts;
+import org.apache.hadoop.ozone.om.OMMetadataManager;
+
+import java.io.IOException;
+
+import static org.apache.hadoop.ozone.OzoneConsts.TRANSACTION_INFO_KEY;
+import static org.apache.hadoop.ozone.OzoneConsts.TRANSACTION_INFO_SPLIT_KEY;
 
 /**
  * TransactionInfo which is applied to OM DB.
@@ -30,14 +35,21 @@ public class OMTransactionInfo {
   private long transactionIndex;
 
   public OMTransactionInfo(String transactionInfo) {
-    Preconditions.checkNotNull(transactionInfo);
-    String[] tInfo =
-        transactionInfo.split(OzoneConsts.TRANSACTION_INFO_SPLIT_KEY);
-    Preconditions.checkState(tInfo.length==2, "Incorrect TransactionInfo " +
-        "value");
 
-    currentTerm = Long.parseLong(tInfo[0]);
-    transactionIndex = Long.parseLong(tInfo[1]);
+    // If no transactions are committed to DB, then transactionInfo will be
+    // null. So return default values.
+    if (transactionInfo == null) {
+      currentTerm = -1;
+      transactionIndex = 0;
+    } else {
+      String[] tInfo =
+          transactionInfo.split(TRANSACTION_INFO_SPLIT_KEY);
+      Preconditions.checkState(tInfo.length == 2, "Incorrect TransactionInfo " +
+          "value");
+
+      currentTerm = Long.parseLong(tInfo[0]);
+      transactionIndex = Long.parseLong(tInfo[1]);
+    }
   }
 
   /**
@@ -64,6 +76,13 @@ public class OMTransactionInfo {
    */
   public static String generateTransactionInfo(long currentTerm,
       long transactionIndex) {
-    return currentTerm + "-" + transactionIndex;
+    return currentTerm + TRANSACTION_INFO_SPLIT_KEY + transactionIndex;
+  }
+
+  public static OMTransactionInfo readTransactionInfo(
+      OMMetadataManager metadataManager) throws IOException {
+    String tInfo =
+        metadataManager.getTransactionInfoTable().get(TRANSACTION_INFO_KEY);
+    return new OMTransactionInfo(tInfo);
   }
 }

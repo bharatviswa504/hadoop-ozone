@@ -51,6 +51,7 @@ import org.junit.rules.TemporaryFolder;
 import org.mockito.Mockito;
 import org.slf4j.LoggerFactory;
 
+import static org.apache.hadoop.ozone.OzoneConsts.TRANSACTION_INFO_KEY;
 import static org.junit.Assert.assertFalse;
 import static org.mockito.Mockito.when;
 
@@ -102,9 +103,7 @@ public class TestOzoneManagerRatisServer {
     omMetadataManager = new OmMetadataManagerImpl(ozoneConfiguration);
     when(ozoneManager.getMetadataManager()).thenReturn(omMetadataManager);
     initialTermIndex = TermIndex.newTermIndex(0, 0);
-    when(ozoneManager.saveRatisSnapshot()).thenReturn(initialTermIndex);
-    OMRatisSnapshotInfo omRatisSnapshotInfo = new OMRatisSnapshotInfo(
-        folder.newFolder());
+    OMRatisSnapshotInfo omRatisSnapshotInfo = new OMRatisSnapshotInfo();
     when(ozoneManager.getSnapshotInfo()).thenReturn(omRatisSnapshotInfo);
     omRatisServer = OzoneManagerRatisServer.newOMRatisServer(conf, ozoneManager,
       omNodeDetails, Collections.emptyList());
@@ -130,12 +129,18 @@ public class TestOzoneManagerRatisServer {
   @Test
   public void testLoadSnapshotInfoOnStart() throws Exception {
     // Stop the Ratis server and manually update the snapshotInfo.
-    TermIndex oldSnaphsotIndex = ozoneManager.saveRatisSnapshot();
-    ozoneManager.getSnapshotInfo().saveRatisSnapshotToDisk(oldSnaphsotIndex);
+    OMTransactionInfo omTransactionInfo =
+        OMTransactionInfo.readTransactionInfo(omMetadataManager);
     omRatisServer.stop();
+
     TermIndex newSnapshotIndex = TermIndex.newTermIndex(
-        oldSnaphsotIndex.getTerm(), oldSnaphsotIndex.getIndex() + 100);
-    ozoneManager.getSnapshotInfo().saveRatisSnapshotToDisk(newSnapshotIndex);
+        omTransactionInfo.getCurrentTerm(),
+        omTransactionInfo.getTransactionIndex() + 100);
+
+    omMetadataManager.getTransactionInfoTable().put(TRANSACTION_INFO_KEY,
+        OMTransactionInfo.generateTransactionInfo(
+            omTransactionInfo.getCurrentTerm(),
+            omTransactionInfo.getTransactionIndex() + 100));
 
     // Start new Ratis server. It should pick up and load the new SnapshotInfo
     omRatisServer = OzoneManagerRatisServer.newOMRatisServer(conf, ozoneManager,

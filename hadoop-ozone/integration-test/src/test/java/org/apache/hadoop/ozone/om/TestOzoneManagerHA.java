@@ -118,7 +118,6 @@ public class TestOzoneManagerHA {
   private String scmId;
   private String omServiceId;
   private int numOfOMs = 3;
-  private static final long SNAPSHOT_THRESHOLD = 50;
   private static final int LOG_PURGE_GAP = 50;
   /* Reduce max number of retries to speed up unit test. */
   private static final int OZONE_CLIENT_FAILOVER_MAX_ATTEMPTS = 5;
@@ -153,9 +152,6 @@ public class TestOzoneManagerHA {
         IPC_CLIENT_CONNECT_MAX_RETRIES);
     /* Reduce IPC retry interval to speed up unit test. */
     conf.setInt(IPC_CLIENT_CONNECT_RETRY_INTERVAL_KEY, 200);
-    conf.setLong(
-        OMConfigKeys.OZONE_OM_RATIS_SNAPSHOT_AUTO_TRIGGER_THRESHOLD_KEY,
-        SNAPSHOT_THRESHOLD);
     conf.setInt(OMConfigKeys.OZONE_OM_RATIS_LOG_PURGE_GAP, LOG_PURGE_GAP);
     cluster = (MiniOzoneHAClusterImpl) MiniOzoneCluster.newHABuilder(conf)
         .setClusterId(clusterId)
@@ -1119,15 +1115,21 @@ public class TestOzoneManagerHA {
     // triggers a snapshot on the state machine.
 
     long appliedLogIndex = 0;
-    while (appliedLogIndex <= SNAPSHOT_THRESHOLD) {
+
+    long transactionCount = 50;
+    while (appliedLogIndex <= transactionCount) {
       createKey(ozoneBucket);
       appliedLogIndex = ozoneManager.getOmRatisServer()
           .getLastAppliedTermIndex().getIndex();
     }
 
     GenericTestUtils.waitFor(() -> {
-      if (ozoneManager.getRatisSnapshotIndex() > 0) {
-        return true;
+      try {
+        if (ozoneManager.getRatisSnapshotIndex() > 0) {
+          return true;
+        }
+      } catch (Exception ex) {
+        fail("test failed during getRatisSnapshotIndex");
       }
       return false;
     }, 1000, 100000);
@@ -1143,15 +1145,19 @@ public class TestOzoneManagerHA {
         smLastAppliedIndex >= ratisSnapshotIndex);
 
     // Add more transactions to Ratis to trigger another snapshot
-    while (appliedLogIndex <= (smLastAppliedIndex + SNAPSHOT_THRESHOLD)) {
+    while (appliedLogIndex <= (smLastAppliedIndex + transactionCount)) {
       createKey(ozoneBucket);
       appliedLogIndex = ozoneManager.getOmRatisServer()
           .getLastAppliedTermIndex().getIndex();
     }
 
     GenericTestUtils.waitFor(() -> {
-      if (ozoneManager.getRatisSnapshotIndex() > 0) {
-        return true;
+      try {
+        if (ozoneManager.getRatisSnapshotIndex() > 0) {
+          return true;
+        }
+      } catch (Exception ex) {
+        fail("test failed during getRatisSnapshotIndex");
       }
       return false;
     }, 1000, 100000);
@@ -1237,7 +1243,7 @@ public class TestOzoneManagerHA {
     followerOM1.restart();
 
     // Get the latest snapshotIndex from the leader OM.
-    long leaderOMSnaphsotIndex = leaderOM.saveRatisSnapshot().getIndex();
+    long leaderOMSnaphsotIndex = leaderOM.getRatisSnapshotIndex();
 
     // The recently started OM should be lagging behind the leader OM.
     long followerOMLastAppliedIndex =

@@ -302,16 +302,6 @@ public final class OzoneConsts {
   // Dummy OMNodeID for OM Clients to use for a non-HA OM setup
   public static final String OM_NODE_ID_DUMMY = "omNodeIdDummy";
 
-  // OM Ratis snapshot file to store the last applied index
-  public static final String OM_RATIS_SNAPSHOT_INDEX = "ratisSnapshotIndex";
-
-  public static final String OM_RATIS_SNAPSHOT_TERM = "ratisSnapshotTerm";
-
-  // OM Http request parameter to be used while downloading DB checkpoint
-  // from OM leader to follower
-  public static final String OM_RATIS_SNAPSHOT_BEFORE_DB_CHECKPOINT =
-      "snapshotBeforeCheckpoint";
-
   public static final String JAVA_TMP_DIR = "java.io.tmpdir";
   public static final String LOCALHOST = "localhost";
 
@@ -331,6 +321,6 @@ public final class OzoneConsts {
 
   // Transaction Info
   public static final String TRANSACTION_INFO_KEY = "TRANSACTIONINFO";
-  public static final String TRANSACTION_INFO_SPLIT_KEY = "-";
+  public static final String TRANSACTION_INFO_SPLIT_KEY = "#";
 
 }

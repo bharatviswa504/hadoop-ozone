@@ -28,8 +28,11 @@ import org.apache.hadoop.ozone.client.OzoneClientFactory;
 import org.apache.hadoop.ozone.client.OzoneVolume;
 import org.apache.hadoop.ozone.client.VolumeArgs;
 import org.apache.hadoop.ozone.om.OMConfigKeys;
+import org.apache.hadoop.ozone.om.OmMetadataManagerImpl;
 import org.apache.hadoop.ozone.om.OzoneManager;
 import org.apache.hadoop.hdds.utils.db.DBCheckpoint;
+import org.apache.hadoop.ozone.om.ratis.OMTransactionInfo;
+import org.apache.hadoop.test.GenericTestUtils;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -103,11 +106,16 @@ public class TestOzoneManagerSnapshotProvider {
     OzoneVolume retVolumeinfo = objectStore.getVolume(volumeName);
 
     retVolumeinfo.createBucket(bucketName);
-    OzoneBucket ozoneBucket = retVolumeinfo.getBucket(bucketName);
+    retVolumeinfo.getBucket(bucketName);
 
     String leaderOMNodeId = objectStore.getClientProxy().getOMProxyProvider()
         .getCurrentProxyOMNodeId();
     OzoneManager ozoneManager = cluster.getOzoneManager(leaderOMNodeId);
+
+    // Wait until transactions are flushed to DB.
+    GenericTestUtils.waitFor(() -> ozoneManager.getOmRatisServer()
+            .getOmStateMachine().getDoubleBuffer()
+            .getFlushedTransactionCount() == 2, 200, 10000);
 
     // Get a follower OM
     String followerNodeId = ozoneManager.getPeerNodes().get(0).getOMNodeId();
@@ -117,13 +125,34 @@ public class TestOzoneManagerSnapshotProvider {
     DBCheckpoint omSnapshot = followerOM.getOmSnapshotProvider()
         .getOzoneManagerDBSnapshot(leaderOMNodeId);
 
-    long leaderSnapshotIndex = ozoneManager.getRatisSnapshotIndex();
-    long downloadedSnapshotIndex = omSnapshot.getRatisSnapshotIndex();
+    long leaderSnapshotIndex =
+        OMTransactionInfo.readTransactionInfo(ozoneManager.getMetadataManager())
+            .getTransactionIndex();
+    long downloadedSnapshotIndex = getDownloadSnapshotIndex(omSnapshot);
 
     // The snapshot index downloaded from leader OM should match the ratis
     // snapshot index on the leader OM
     Assert.assertEquals("The snapshot index downloaded from leader OM does " +
         "not match its ratis snapshot index",
         leaderSnapshotIndex, downloadedSnapshotIndex);
+  }
+
+  private long getDownloadSnapshotIndex(DBCheckpoint dbCheckpoint)
+      throws Exception {
+
+    OzoneConfiguration configuration = new OzoneConfiguration(conf);
+    configuration.set(OMConfigKeys.OZONE_OM_DB_DIRS,
+        dbCheckpoint.getCheckpointLocation().getParent().toAbsolutePath()
+            .toString());
+
+    OmMetadataManagerImpl omMetadataManager =
+        new OmMetadataManagerImpl(configuration);
+
+    long transactionIndex =
+        OMTransactionInfo.readTransactionInfo(omMetadataManager)
+        .getTransactionIndex();
+    omMetadataManager.stop();
+    return transactionIndex;
+
   }
 }
