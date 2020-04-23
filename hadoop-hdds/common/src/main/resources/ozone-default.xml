@@ -748,9 +748,12 @@
     <tag>OZONE, SCM, CONTAINER, PERFORMANCE</tag>
     <description>
       Chunk layout defines how chunks, blocks and containers are stored on disk.
-      Each chunk is stored separately with FILE_PER_CHUNK.  All chunks of a
-      block are stored in the same file with FILE_PER_BLOCK.  The default is
-      FILE_PER_BLOCK.
+      Each chunk is stored separately with
+      FILE_PER_CHUNK_AND_CONTAINER_DB_HAS_METADATA and metadata related to
+      blocks is stored in container DB.  All chunks of a block are stored in
+      the same file with FILE_PER_BLOCK_AND_CONTAINER_DB_HAS_METADATA and
+      metadata related to blocks is stored in container DB.  The default is
+      FILE_PER_BLOCK_AND_CONTAINER_DB_HAS_METADATA.
     </description>
   </property>
   <property>

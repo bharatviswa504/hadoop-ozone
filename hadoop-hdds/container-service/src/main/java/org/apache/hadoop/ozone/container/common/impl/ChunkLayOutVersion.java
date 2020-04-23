@@ -120,23 +120,20 @@ public enum ChunkLayOutVersion {
           conf.getEnum(ScmConfigKeys.OZONE_SCM_CHUNK_LAYOUT_KEY,
           DEFAULT_LAYOUT);
 
-      // If on newer version of software if user configured mistakenly to use
-      // older version, log an warning message. Not changing to newer layouts
-      // for now to give an option to user if some bug present in newer layout
-      // version, user has option to use still older version. We can change
-      // this automatically in newer releases if no issues with newer version.
+      // If older lay out versions are used automatically use newer layout
+      // versions with block related metadata in container DB.
       if (ChunkLayOutVersion.FILE_PER_BLOCK == chunkLayOutVersion) {
         LOG.warn("Using older version of ChunkLayoutVersion {}. Use new " +
             "version {} which stores file per block along with block metadata" +
             " in DB. This will help in reducing DN startup time.",
             FILE_PER_BLOCK, FILE_PER_BLOCK_AND_CONTAINER_DB_HAS_METADATA);
-        return chunkLayOutVersion;
+        return FILE_PER_BLOCK_AND_CONTAINER_DB_HAS_METADATA;
       } else if (ChunkLayOutVersion.FILE_PER_CHUNK == chunkLayOutVersion) {
         LOG.warn("Using older version of ChunkLayoutVersion {}. Use new " +
             "version {} which stores file per chunk along with block metadata" +
             " in DB. This will help in reducing DN startup time.",
             FILE_PER_CHUNK, FILE_PER_CHUNK_AND_CONTAINER_DB_HAS_METADATA);
-        return chunkLayOutVersion;
+        return FILE_PER_CHUNK_AND_CONTAINER_DB_HAS_METADATA;
       }
       return chunkLayOutVersion;
     } catch (IllegalArgumentException e) {
