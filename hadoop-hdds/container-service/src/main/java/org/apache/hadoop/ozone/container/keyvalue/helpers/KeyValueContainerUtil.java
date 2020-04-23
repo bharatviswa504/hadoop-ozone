@@ -179,7 +179,7 @@ public final class KeyValueContainerUtil {
    * @param config
    * @throws IOException
    */
-  private static void setBlockMetadataForVersion3(
+  private static void setBlockMetadataForVersion3And4(
       KeyValueContainerData kvContainerData, ConfigurationSource config)
       throws IOException {
     try (ReferenceCountedDB containerDB = BlockUtils.getDB(kvContainerData,
