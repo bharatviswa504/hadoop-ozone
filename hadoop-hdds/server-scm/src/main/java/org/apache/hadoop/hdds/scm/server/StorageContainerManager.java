@@ -607,7 +607,7 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
             .setSecretManager(null)
             .build();
 
-    DFSUtil.addPBProtocol(conf, protocol, instance, rpcServer);
+    HddsUtils.addPBProtocol(conf, protocol, instance, rpcServer);
     return rpcServer;
   }
 

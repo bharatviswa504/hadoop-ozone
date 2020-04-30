@@ -121,6 +121,7 @@ https://maven.apache.org/xsd/maven-4.0.0.xsd">
                 <directory>${basedir}/src/main/proto</directory>
                 <includes>
                   <include>FSProtos.proto</include>
+                  <include>Security.proto</include>
                   <include>OzoneManagerProtocol.proto</include>
                 </includes>
               </source>

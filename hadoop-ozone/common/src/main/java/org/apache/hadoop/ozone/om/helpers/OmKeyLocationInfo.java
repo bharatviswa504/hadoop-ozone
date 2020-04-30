@@ -21,6 +21,7 @@ import org.apache.hadoop.hdds.scm.pipeline.Pipeline;
 import org.apache.hadoop.hdds.scm.pipeline.UnknownPipelineStateException;
 import org.apache.hadoop.hdds.security.token.OzoneBlockTokenIdentifier;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.KeyLocation;
+import org.apache.hadoop.protobuf.ProtoHelper;
 import org.apache.hadoop.security.token.Token;
 
 import java.util.Objects;
@@ -162,7 +163,7 @@ public final class OmKeyLocationInfo {
         .setOffset(offset)
         .setCreateVersion(createVersion);
     if (this.token != null) {
-      builder.setToken(this.token.toTokenProto());
+      builder.setToken(ProtoHelper.protoFromToken(token));
     }
     try {
       builder.setPipeline(pipeline.getProtobufMessage());
@@ -188,7 +189,8 @@ public final class OmKeyLocationInfo {
         keyLocation.getLength(),
         keyLocation.getOffset());
     if(keyLocation.hasToken()) {
-      info.token =  new Token<>(keyLocation.getToken());
+      info.token = (Token<OzoneBlockTokenIdentifier>)
+          ProtoHelper.tokenFromProto(keyLocation.getToken());
     }
     info.setCreateVersion(keyLocation.getCreateVersion());
     return info;

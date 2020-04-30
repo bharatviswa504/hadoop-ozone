@@ -23,6 +23,7 @@ import java.net.ServerSocket;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hdds.HddsConfigKeys;
+import org.apache.hadoop.hdds.HddsUtils;
 import org.apache.hadoop.hdds.conf.ConfigurationSource;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.fs.MockSpaceUsageCheckFactory;
@@ -79,7 +80,7 @@ public final class SCMTestUtils {
         .setSecretManager(null)
         .build();
 
-    DFSUtil.addPBProtocol(conf, protocol, instance, rpcServer);
+    HddsUtils.addPBProtocol(conf, protocol, instance, rpcServer);
     return rpcServer;
   }
 

@@ -865,7 +865,7 @@ public final class OzoneManager extends ServiceRuntimeInfoImpl
         .setSecretManager(delegationTokenMgr)
         .build();
 
-    DFSUtil.addPBProtocol(conf, protocol, instance, rpcServer);
+    HddsUtils.addPBProtocol(conf, protocol, instance, rpcServer);
 
     if (conf.getBoolean(CommonConfigurationKeys.HADOOP_SECURITY_AUTHORIZATION,
         false)) {
