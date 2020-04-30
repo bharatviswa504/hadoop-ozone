@@ -27,6 +27,9 @@ import org.apache.hadoop.ozone.container.keyvalue.KeyValueContainerData;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -49,9 +52,14 @@ public class RandomContainerDeletionChoosingPolicy
     int currentCount = 0;
     List<ContainerData> result = new LinkedList<>();
     ContainerData[] values = new ContainerData[candidateContainers.size()];
+
     // to get a shuffle list
-    for (ContainerData entry : DFSUtil.shuffle(
-        candidateContainers.values().toArray(values))) {
+    List<ContainerData> shuffledContainerDataList =
+        new ArrayList<>(candidateContainers.values());
+    Collections.shuffle(shuffledContainerDataList);
+
+
+    for (ContainerData entry : shuffledContainerDataList) {
       if (currentCount < count) {
         result.add(entry);
         currentCount++;
