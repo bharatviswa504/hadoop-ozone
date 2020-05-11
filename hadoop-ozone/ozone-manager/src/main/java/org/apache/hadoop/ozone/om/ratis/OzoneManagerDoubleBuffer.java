@@ -30,6 +30,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import org.apache.hadoop.hdds.function.SupplierWithIOException;
 import org.apache.hadoop.hdds.tracing.TracingUtil;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMResponse;
@@ -138,6 +139,12 @@ public final class OzoneManagerDoubleBuffer {
     }
 
     public OzoneManagerDoubleBuffer build() {
+      if (isRatisEnabled) {
+        Preconditions.checkNotNull(indexToTerm, "When ratis is enabled, " +
+                "OzoneManagerRatisSnapshot should not be null");
+        Preconditions.checkNotNull(indexToTerm, "When ratis is enabled " +
+            "indexToTerm should not be null");
+      }
       return new OzoneManagerDoubleBuffer(mm, rs, isRatisEnabled,
           isTracingEnabled, indexToTerm);
     }
