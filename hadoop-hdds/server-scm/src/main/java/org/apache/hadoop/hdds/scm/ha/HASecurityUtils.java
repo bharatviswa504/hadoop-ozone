@@ -24,6 +24,7 @@ import org.apache.hadoop.hdds.scm.server.SCMCertStore;
 import org.apache.hadoop.hdds.scm.server.SCMStorageConfig;
 import org.apache.hadoop.hdds.security.x509.SecurityConfig;
 import org.apache.hadoop.hdds.security.x509.certificate.authority.CertificateServer;
+import org.apache.hadoop.hdds.security.x509.certificate.authority.CertificateStore;
 import org.apache.hadoop.hdds.security.x509.certificate.authority.DefaultCAServer;
 import org.apache.hadoop.hdds.security.x509.certificate.authority.PKIProfiles.DefaultCAProfile;
 import org.apache.hadoop.hdds.security.x509.certificate.client.CertificateClient;
@@ -228,7 +229,7 @@ public final class HASecurityUtils {
    * @param scmID     - SCM ID
    */
   public static CertificateServer initializeRootCertificateServer(
-      String clusterID, String scmID, SCMCertStore scmCertStore)
+      String clusterID, String scmID, CertificateStore scmCertStore)
       throws IOException {
     String subject = "scm-rootca@" + InetAddress.getLocalHost().getHostName();
 

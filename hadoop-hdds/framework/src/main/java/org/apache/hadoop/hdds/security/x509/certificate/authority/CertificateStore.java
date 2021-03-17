@@ -54,6 +54,9 @@ public interface CertificateStore {
   void storeValidCertificate(BigInteger serialID,
       X509Certificate certificate, NodeType role) throws IOException;
 
+  void storeValidScmCertificate(BigInteger serialID,
+      X509Certificate certificate) throws IOException;
+
   /**
    * Adds the certificates to be revoked to a new CRL and moves all the
    * certificates in a transactional manner from valid certificate to

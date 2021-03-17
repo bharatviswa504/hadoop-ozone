@@ -301,7 +301,7 @@ public class SCMSecurityProtocolClientSideTranslatorPB implements
   public String getRootCACertificate() throws IOException {
     SCMGetCACertificateRequestProto protoIns = SCMGetCACertificateRequestProto
         .getDefaultInstance();
-    return submitRequest(Type.GetCACertificate,
+    return submitRequest(Type.GetRootCACertificate,
         builder -> builder.setGetCACertificateRequest(protoIns))
         .getGetCertResponseProto().getX509RootCACertificate();
   }
