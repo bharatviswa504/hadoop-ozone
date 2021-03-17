@@ -18,6 +18,7 @@
 package org.apache.hadoop.hdds.scm.cli;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -36,6 +37,7 @@ import org.apache.hadoop.hdds.scm.XceiverClientSpi;
 import org.apache.hadoop.hdds.scm.client.ScmClient;
 import org.apache.hadoop.hdds.scm.container.ContainerInfo;
 import org.apache.hadoop.hdds.scm.container.common.helpers.ContainerWithPipeline;
+import org.apache.hadoop.hdds.scm.ha.SCMHAUtils;
 import org.apache.hadoop.hdds.scm.pipeline.Pipeline;
 import org.apache.hadoop.hdds.scm.protocol.StorageContainerLocationProtocol;
 import org.apache.hadoop.hdds.scm.protocolPB.StorageContainerLocationProtocolClientSideTranslatorPB;
@@ -96,8 +98,18 @@ public class ContainerOperationClient implements ScmClient {
       SecurityConfig securityConfig = new SecurityConfig(conf);
       SCMSecurityProtocol scmSecurityProtocolClient = getScmSecurityClient(
           (OzoneConfiguration) securityConfig.getConfiguration());
-      String caCertificate =
-          scmSecurityProtocolClient.getCACertificate();
+      List<String> caCertificate;
+      if (SCMHAUtils.isSCMHAEnabled(conf)) {
+        caCertificate =
+            scmSecurityProtocolClient.listCACertificate();
+      } else {
+        caCertificate = new ArrayList<>();
+        caCertificate.add(scmSecurityProtocolClient.getCACertificate());
+        String rootCa = scmSecurityProtocolClient.getRootCACertificate();
+        if (rootCa != null) {
+          caCertificate.add(rootCa);
+        }
+      }
       manager = new XceiverClientManager(conf,
           conf.getObject(XceiverClientManager.ScmClientConfig.class),
           caCertificate);
