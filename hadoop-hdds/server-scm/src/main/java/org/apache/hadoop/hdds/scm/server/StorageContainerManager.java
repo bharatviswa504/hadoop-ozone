@@ -825,6 +825,11 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
         // SCM Node info containing hostname to scm Id mappings
         // will be persisted into the version file once this node gets added
         // to existing SCM ring post node regular start up.
+
+        if(OzoneSecurityUtil.isSecurityEnabled(conf)) {
+          HASecurityUtils.initializeSecurity(scmStorageConfig,
+              fetchedId, conf, getScmAddress(scmhaNodeDetails, conf), false);
+        }
         scmStorageConfig.initialize();
       } catch (IOException ioe) {
         LOG.error("Could not initialize SCM version file", ioe);
