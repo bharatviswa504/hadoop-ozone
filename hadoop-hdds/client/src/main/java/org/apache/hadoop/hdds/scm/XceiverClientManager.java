@@ -99,7 +99,7 @@ public class XceiverClientManager implements Closeable, XceiverClientFactory {
       try {
         this.caCerts = new ArrayList<>(caCertPems.size());
         for (String cert : caCertPems) {
-         this.caCerts.add(CertificateCodec.getX509Cert(cert));
+          this.caCerts.add(CertificateCodec.getX509Cert(cert));
         }
       } catch (CertificateException ex) {
         throw new SCMSecurityException("Error: Fail to get SCM CA certificate",

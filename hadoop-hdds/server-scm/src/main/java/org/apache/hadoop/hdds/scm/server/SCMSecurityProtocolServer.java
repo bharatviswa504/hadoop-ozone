@@ -57,7 +57,6 @@ import org.slf4j.LoggerFactory;
 import static org.apache.hadoop.hdds.security.exception.SCMSecurityException.ErrorCode.CERTIFICATE_NOT_FOUND;
 import static org.apache.hadoop.hdds.security.exception.SCMSecurityException.ErrorCode.GET_CA_CERT_FAILED;
 import static org.apache.hadoop.hdds.security.exception.SCMSecurityException.ErrorCode.GET_CERTIFICATE_FAILED;
-import static org.apache.hadoop.hdds.security.exception.SCMSecurityException.ErrorCode.GET_ROOT_CA_CERT_FAILED;
 import static org.apache.hadoop.hdds.security.x509.certificate.authority.CertificateApprover.ApprovalType.KERBEROS_TRUSTED;
 
 /**
@@ -185,8 +184,8 @@ public class SCMSecurityProtocolServer implements SCMSecurityProtocol {
       future = rootCertificateServer.requestCertificate(certSignReq,
               KERBEROS_TRUSTED, nodeType);
     } else {
-      future = rootCertificateServer.requestCertificate(certSignReq,
-              KERBEROS_TRUSTED, nodeType);
+      future = storageContainerManager.getScmCertificateServer()
+          .requestCertificate(certSignReq, KERBEROS_TRUSTED, nodeType);
     }
     try {
       return CertificateCodec.getPEMEncodedString(future.get());

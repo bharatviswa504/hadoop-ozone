@@ -38,7 +38,6 @@ import java.security.SignatureException;
 import java.security.cert.CertStore;
 import java.security.cert.X509Certificate;
 import java.security.spec.InvalidKeySpecException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -907,7 +906,8 @@ public abstract class DefaultCertificateClient implements CertificateClient {
         return pemEncodedCACerts;
       } catch (Exception e) {
         getLogger().error("Error during listCA", e);
-        throw new CertificateException("Error during listCA ", e, CERTIFICATE_ERROR);
+        throw new CertificateException("Error during listCA ", e,
+            CERTIFICATE_ERROR);
       }
     }
     return pemEncodedCACerts;

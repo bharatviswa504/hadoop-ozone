@@ -19,7 +19,6 @@ package org.apache.hadoop.hdds.scm.cli;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -112,7 +111,8 @@ public class ContainerOperationClient implements ScmClient {
         }
       }
       manager = new XceiverClientManager(conf,
-          conf.getObject(XceiverClientManager.ScmClientConfig.class), caCertificate);
+          conf.getObject(XceiverClientManager.ScmClientConfig.class),
+          caCertificate);
     } else {
       manager = new XceiverClientManager(conf);
     }
