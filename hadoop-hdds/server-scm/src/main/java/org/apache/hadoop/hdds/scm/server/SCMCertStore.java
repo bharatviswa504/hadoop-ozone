@@ -80,7 +80,6 @@ public final class SCMCertStore implements CertificateStore {
     lock.lock();
     try {
       // This makes sure that no certificate IDs are reusable.
-      checkValidCertID(serialID);
       if (role == SCM) {
         // If the role is SCM, store certificate in scm cert table
         // and valid cert table. This is to help to return scm certs during
@@ -102,11 +101,10 @@ public final class SCMCertStore implements CertificateStore {
    * @param certificate - Certificate to persist.
    * @throws IOException - on Failure.
    */
-  private void storeValidScmCertificate(BigInteger serialID,
+  public void storeValidScmCertificate(BigInteger serialID,
       X509Certificate certificate) throws IOException {
     lock.lock();
     try {
-      checkValidCertID(serialID);
       BatchOperation batchOperation =
           scmMetadataStore.getBatchHandler().initBatchOperation();
       scmMetadataStore.getValidSCMCertsTable().putWithBatch(batchOperation,
@@ -122,7 +120,7 @@ public final class SCMCertStore implements CertificateStore {
   private void checkValidCertID(BigInteger serialID) throws IOException {
     if ((getCertificateByID(serialID, VALID_CERTS) != null) ||
         (getCertificateByID(serialID, CertType.REVOKED_CERTS) != null)) {
-      throw new SCMSecurityException("Conflicting certificate ID");
+      throw new SCMSecurityException("Conflicting certificate ID " + serialID);
     }
   }
 

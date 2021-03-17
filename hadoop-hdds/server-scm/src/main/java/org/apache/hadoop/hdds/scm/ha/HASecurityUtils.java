@@ -20,10 +20,10 @@ import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos.ScmNodeDetailsProto;
 import org.apache.hadoop.hdds.protocol.proto.SCMSecurityProtocolProtos.SCMGetCertResponseProto;
 import org.apache.hadoop.hdds.protocolPB.SCMSecurityProtocolClientSideTranslatorPB;
-import org.apache.hadoop.hdds.scm.server.SCMCertStore;
 import org.apache.hadoop.hdds.scm.server.SCMStorageConfig;
 import org.apache.hadoop.hdds.security.x509.SecurityConfig;
 import org.apache.hadoop.hdds.security.x509.certificate.authority.CertificateServer;
+import org.apache.hadoop.hdds.security.x509.certificate.authority.CertificateStore;
 import org.apache.hadoop.hdds.security.x509.certificate.authority.DefaultCAServer;
 import org.apache.hadoop.hdds.security.x509.certificate.authority.PKIProfiles.DefaultCAProfile;
 import org.apache.hadoop.hdds.security.x509.certificate.client.CertificateClient;
@@ -32,6 +32,9 @@ import org.apache.hadoop.hdds.security.x509.certificate.client.SCMCertificateCli
 import org.apache.hadoop.hdds.security.x509.certificate.utils.CertificateCodec;
 import org.apache.hadoop.hdds.security.x509.certificates.utils.CertificateSignRequest;
 import org.apache.hadoop.hdds.utils.HddsServerUtil;
+import org.apache.ratis.conf.Parameters;
+import org.apache.ratis.grpc.GrpcConfigKeys;
+import org.apache.ratis.grpc.GrpcTlsConfig;
 import org.bouncycastle.cert.X509CertificateHolder;
 import org.bouncycastle.pkcs.PKCS10CertificationRequest;
 import org.slf4j.Logger;
@@ -228,7 +231,7 @@ public final class HASecurityUtils {
    * @param scmID     - SCM ID
    */
   public static CertificateServer initializeRootCertificateServer(
-      String clusterID, String scmID, SCMCertStore scmCertStore)
+      String clusterID, String scmID, CertificateStore scmCertStore)
       throws IOException {
     String subject = "scm-rootca@" + InetAddress.getLocalHost().getHostName();
 
@@ -248,7 +251,9 @@ public final class HASecurityUtils {
     // Get host name.
     String hostname = scmAddress.getAddress().getHostName();
 
-    String subject = "scm@"+ hostname;
+    String subject = "scm@" + hostname;
+
+
 
     builder.setKey(keyPair)
         .setConfiguration(config)
@@ -262,5 +267,28 @@ public final class HASecurityUtils {
         scmStorageConfig.getClusterID(), subject);
 
     return builder.build();
+  }
+
+  /**
+   * Create Server TLS parameters required for Ratis Server.
+   * @param conf
+   * @param caClient
+   * @return
+   */
+  public static Parameters createServerTlsParameters(SecurityConfig conf,
+      CertificateClient caClient) {
+    Parameters parameters = new Parameters();
+
+    if (conf.isSecurityEnabled() && conf.isGrpcTlsEnabled()) {
+      GrpcTlsConfig config = new GrpcTlsConfig(
+          caClient.getPrivateKey(), caClient.getCertificate(),
+          caClient.getCACertificate(), true);
+      GrpcConfigKeys.Server.setTlsConf(parameters, config);
+      GrpcConfigKeys.Admin.setTlsConf(parameters, config);
+      GrpcConfigKeys.Client.setTlsConf(parameters, config);
+      GrpcConfigKeys.TLS.setConf(parameters, config);
+    }
+
+    return parameters;
   }
 }
