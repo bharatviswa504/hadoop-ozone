@@ -38,6 +38,7 @@ import java.security.SignatureException;
 import java.security.cert.CertStore;
 import java.security.cert.X509Certificate;
 import java.security.spec.InvalidKeySpecException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -88,6 +89,8 @@ public abstract class DefaultCertificateClient implements CertificateClient {
   private static final String CERT_FILE_NAME_FORMAT = "%s.crt";
   private static final String CA_CERT_PREFIX = "CA-";
   private static final int CA_CERT_PREFIX_LEN = 3;
+  private static final String ROOT_CA_CERT_PREFIX = "ROOTCA-";
+  private static final int ROOT_CA_PREFIX_LEN = 7;
   private final Logger logger;
   private final SecurityConfig securityConfig;
   private final KeyCodec keyCodec;
@@ -97,7 +100,9 @@ public abstract class DefaultCertificateClient implements CertificateClient {
   private Map<String, X509Certificate> certificateMap;
   private String certSerialId;
   private String caCertId;
+  private String rootCaCertId;
   private String component;
+  private List<String> pemEncodedCACerts = null;
 
   DefaultCertificateClient(SecurityConfig securityConfig, Logger log,
       String certSerialId, String component) {
@@ -127,6 +132,7 @@ public abstract class DefaultCertificateClient implements CertificateClient {
         CertificateCodec certificateCodec =
             new CertificateCodec(securityConfig, component);
         long latestCaCertSerailId = -1L;
+        long latestRootCaCertSerialId = -1L;
         for (File file : certFiles) {
           if (file.isFile()) {
             try {
@@ -149,6 +155,16 @@ public abstract class DefaultCertificateClient implements CertificateClient {
                     latestCaCertSerailId = tmpCaCertSerailId;
                   }
                 }
+
+                if (file.getName().startsWith(ROOT_CA_CERT_PREFIX)) {
+                  String certFileName = FilenameUtils.getBaseName(
+                      file.getName());
+                  long tmpRootCaCertSerailId = NumberUtils.toLong(
+                      certFileName.substring(ROOT_CA_PREFIX_LEN));
+                  if (tmpRootCaCertSerailId > latestRootCaCertSerialId) {
+                    latestRootCaCertSerialId = tmpRootCaCertSerailId;
+                  }
+                }
                 getLogger().info("Added certificate from file:{}.",
                     file.getAbsolutePath());
               } else {
@@ -163,6 +179,9 @@ public abstract class DefaultCertificateClient implements CertificateClient {
         }
         if (latestCaCertSerailId != -1) {
           caCertId = Long.toString(latestCaCertSerailId);
+        }
+        if (latestRootCaCertSerialId != -1) {
+          rootCaCertId = Long.toString(latestRootCaCertSerialId);
         }
       }
     }
@@ -842,5 +861,55 @@ public abstract class DefaultCertificateClient implements CertificateClient {
 
   public String getComponentName() {
     return null;
+  }
+
+  @Override
+  public X509Certificate getRootCACertificate() {
+    if (rootCaCertId != null) {
+      return certificateMap.get(rootCaCertId);
+    }
+    return null;
+  }
+
+  @Override
+  public void storeRootCACertificate(String pemEncodedCert, boolean force)
+      throws CertificateException {
+    CertificateCodec certificateCodec = new CertificateCodec(securityConfig,
+        component);
+    try {
+      Path basePath = securityConfig.getCertificateLocation(component);
+
+      X509Certificate cert =
+          CertificateCodec.getX509Certificate(pemEncodedCert);
+      String certName = String.format(CERT_FILE_NAME_FORMAT,
+          cert.getSerialNumber().toString());
+
+      certName = ROOT_CA_CERT_PREFIX + certName;
+      rootCaCertId = cert.getSerialNumber().toString();
+
+      certificateCodec.writeCertificate(basePath, certName,
+          pemEncodedCert, force);
+      certificateMap.putIfAbsent(cert.getSerialNumber().toString(), cert);
+    } catch (IOException | java.security.cert.CertificateException e) {
+      throw new CertificateException("Error while storing Root CA " +
+          "certificate.", e, CERTIFICATE_ERROR);
+    }
+  }
+
+  @Override
+  public List<String> listCA() throws IOException {
+    if (pemEncodedCACerts == null) {
+      try {
+        SCMSecurityProtocol scmSecurityProtocolClient = getScmSecurityClient(
+            (OzoneConfiguration) securityConfig.getConfiguration());
+        pemEncodedCACerts =
+            scmSecurityProtocolClient.listCACertificate();
+        return pemEncodedCACerts;
+      } catch (Exception e) {
+        getLogger().error("Error during listCA", e);
+        throw new CertificateException("Error during listCA ", e, CERTIFICATE_ERROR);
+      }
+    }
+    return pemEncodedCACerts;
   }
 }

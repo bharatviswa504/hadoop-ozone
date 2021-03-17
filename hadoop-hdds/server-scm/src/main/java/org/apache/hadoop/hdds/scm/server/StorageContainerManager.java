@@ -23,6 +23,7 @@ package org.apache.hadoop.hdds.scm.server;
 
 import javax.management.ObjectName;
 import java.io.IOException;
+import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import com.google.common.annotations.VisibleForTesting;
@@ -37,6 +38,7 @@ import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
@@ -55,10 +57,12 @@ import org.apache.hadoop.hdds.scm.PipelineChoosePolicy;
 import org.apache.hadoop.hdds.scm.PlacementPolicy;
 import org.apache.hadoop.hdds.scm.container.ContainerManagerImpl;
 import org.apache.hadoop.hdds.scm.container.ContainerManagerV2;
+import org.apache.hadoop.hdds.scm.ha.HASecurityUtils;
 import org.apache.hadoop.hdds.scm.ha.SCMContext;
 import org.apache.hadoop.hdds.scm.ha.SCMHAManager;
 import org.apache.hadoop.hdds.scm.ha.SCMHAManagerImpl;
 import org.apache.hadoop.hdds.scm.ha.SCMHANodeDetails;
+import org.apache.hadoop.hdds.scm.ha.SCMNodeInfo;
 import org.apache.hadoop.hdds.scm.ha.SCMServiceManager;
 import org.apache.hadoop.hdds.scm.ha.SCMNodeDetails;
 import org.apache.hadoop.hdds.scm.ha.SCMRatisServerImpl;
@@ -67,6 +71,7 @@ import org.apache.hadoop.hdds.scm.ha.SequenceIdGenerator;
 import org.apache.hadoop.hdds.scm.ScmInfo;
 import org.apache.hadoop.hdds.security.x509.certificate.authority.CertificateStore;
 import org.apache.hadoop.hdds.security.x509.certificate.authority.PKIProfiles.DefaultProfile;
+import org.apache.hadoop.hdds.security.x509.certificate.client.SCMCertificateClient;
 import org.apache.hadoop.hdds.utils.HAUtils;
 import org.apache.hadoop.hdds.utils.HddsServerUtil;
 import org.apache.hadoop.hdds.scm.ScmConfig;
@@ -123,6 +128,7 @@ import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.ipc.RPC;
 import org.apache.hadoop.metrics2.MetricsSystem;
 import org.apache.hadoop.metrics2.util.MBeans;
+import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.ozone.OzoneConfigKeys;
 import org.apache.hadoop.ozone.OzoneSecurityUtil;
 import org.apache.hadoop.ozone.common.Storage.StorageState;
@@ -137,12 +143,15 @@ import org.apache.ratis.grpc.GrpcTlsConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static org.apache.hadoop.hdds.protocol.proto.HddsProtos.NodeType.SCM;
 import static org.apache.hadoop.hdds.scm.ScmConfigKeys.HDDS_SCM_WATCHER_TIMEOUT_DEFAULT;
 import static org.apache.hadoop.hdds.utils.HAUtils.checkSecurityAndSCMHAEnabled;
+import static org.apache.hadoop.hdds.security.x509.certificate.authority.CertificateStore.CertType.VALID_CERTS;
 import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_ADMINISTRATORS_WILDCARD;
 import static org.apache.hadoop.ozone.OzoneConsts.CRL_SEQUENCE_ID_KEY;
 import static org.apache.hadoop.ozone.OzoneConsts.SCM_CA_CERT_STORAGE_DIR;
 import static org.apache.hadoop.ozone.OzoneConsts.SCM_CA_PATH;
+import static org.apache.hadoop.ozone.OzoneConsts.SCM_SUB_CA_PATH;
 
 /**
  * StorageContainerManager is the main entry point for the service that
@@ -216,8 +225,9 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
   private final LeaseManager<Long> commandWatcherLeaseManager;
 
   private SCMSafeModeManager scmSafeModeManager;
-  private CertificateServer certificateServer;
-  private GrpcTlsConfig grpcTlsConfig;
+  private CertificateServer rootCertificateServer;
+  private CertificateServer scmCertificateServer;
+  private SCMCertificateClient scmCertificateClient;
 
   private JvmPauseMonitor jvmPauseMonitor;
   private final OzoneConfiguration configuration;
@@ -288,6 +298,12 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
           "failure.", ResultCodes.SCM_NOT_INITIALIZED);
     }
 
+    if (scmStorageConfig.getPrimaryScmNodeId() != null) {
+      scmCertificateClient =
+          new SCMCertificateClient(new SecurityConfig(configuration),
+              scmStorageConfig.getScmCertSerialId());
+    }
+
     /**
      * Important : This initialization sequence is assumed by some of our tests.
      * The testSecureOzoneCluster assumes that security checks have to be
@@ -320,7 +336,8 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
       // if no Security, we do not create a Certificate Server at all.
       // This allows user to boot SCM without security temporarily
       // and then come back and enable it without any impact.
-      certificateServer = null;
+      rootCertificateServer = null;
+      scmCertificateServer = null;
       securityProtocolServer = null;
     }
 
@@ -559,44 +576,95 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
    */
   private void initializeCAnSecurityProtocol(OzoneConfiguration conf,
       SCMConfigurator configurator) throws IOException {
-    if(configurator.getCertificateServer() != null) {
-      this.certificateServer = configurator.getCertificateServer();
-    } else {
-      // This assumes that SCM init has run, and DB metadata stores are created.
-      certificateServer = initializeCertificateServer(
-          getScmStorageConfig().getClusterID(),
-          getScmStorageConfig().getScmId());
+
+    // TODO: Support Certificate Server loading via Class Name loader.
+    // So it is easy to use different Certificate Servers if needed.
+    if(this.scmMetadataStore == null) {
+      LOG.error("Cannot initialize Certificate Server without a valid meta " +
+          "data layer.");
+      throw new SCMException("Cannot initialize CA without a valid metadata " +
+          "store", ResultCodes.SCM_NOT_INITIALIZED);
     }
-    // TODO: Support Intermediary CAs in future.
-    certificateServer.init(new SecurityConfig(conf),
-        CertificateServer.CAType.SELF_SIGNED_CA);
-    securityProtocolServer = new SCMSecurityProtocolServer(conf,
-        certificateServer, this);
 
-    grpcTlsConfig = createTlsClientConfigForSCM(new SecurityConfig(conf),
-            certificateServer);
-  }
+    CertificateStore certStore =
+        new SCMCertStore.Builder().setMetadaStore(scmMetadataStore)
+            .setRatisServer(scmHAManager.getRatisServer())
+            .setCRLSequenceId(getLastSequenceIdForCRL()).build();
 
-  public CertificateServer getCertificateServer() {
-    return certificateServer;
-  }
+    String primaryScm = scmStorageConfig.getPrimaryScmNodeId();
 
-  // For Internal gRPC client from SCM to DN with gRPC TLS
-  static GrpcTlsConfig createTlsClientConfigForSCM(SecurityConfig conf,
-      CertificateServer certificateServer) throws IOException {
-    if (conf.isSecurityEnabled() && conf.isGrpcTlsEnabled()) {
-      try {
-        X509Certificate caCert =
-            CertificateCodec.getX509Certificate(
-                certificateServer.getCACertificate());
-        return new GrpcTlsConfig(null, null,
-            caCert, false);
-      } catch (CertificateException ex) {
-        throw new SCMSecurityException("Fail to find SCM CA certificate.", ex);
+    // If primary SCM node Id is set it means this is a cluster which has
+    // performed init with SCM HA version code.
+    if (primaryScm != null ) {
+      // Start specific instance SCM CA server.
+      String subject = "scm@"+InetAddress.getLocalHost().getHostName();
+      if (configurator.getCertificateServer() != null) {
+        this.scmCertificateServer = configurator.getCertificateServer();
+      } else {
+        scmCertificateServer = new DefaultCAServer(subject,
+            scmStorageConfig.getClusterID(), scmStorageConfig.getScmId(),
+            certStore, new DefaultProfile(),
+            scmCertificateClient.getComponentName());
+        // INTERMEDIARY_CA which issues certs to DN and OM.
+        scmCertificateServer.init(new SecurityConfig(configuration),
+            CertificateServer.CAType.INTERMEDIARY_CA);
       }
+
+      if (primaryScm.equals(scmStorageConfig.getScmId())) {
+        if (configurator.getCertificateServer() != null) {
+          this.rootCertificateServer = configurator.getCertificateServer();
+        } else {
+          rootCertificateServer =
+              HASecurityUtils.initializeRootCertificateServer(
+              getScmStorageConfig().getClusterID(),
+              getScmStorageConfig().getScmId(), certStore);
+          rootCertificateServer.init(new SecurityConfig(configuration),
+              CertificateServer.CAType.SELF_SIGNED_CA);
+        }
+
+        BigInteger certSerial =
+            scmCertificateClient.getCertificate().getSerialNumber();
+        // Store the certificate in DB. On primary SCM when init happens, the
+        // certificate is not persisted to DB. As we don't have Metadatstore
+        // and ratis server initialized with statemachine. We need to do only
+        // for primary scm, for other bootstrapped scm's certificates will be
+        // persisted via ratis.
+        if (certStore.getCertificateByID(certSerial, VALID_CERTS) == null) {
+          certStore.storeValidScmCertificate(
+              certSerial, scmCertificateClient.getCertificate());
+        }
+      } else {
+        rootCertificateServer = null;
+      }
+    } else {
+      // On a upgraded cluster primary scm nodeId will not be set as init will
+      // not be run again after upgrade. So for a upgraded cluster where init
+      // has not happened again we will have setup like before where it has
+      // one CA server which is issuing certificates to DN and OM.
+      String subject = "scm@" + InetAddress.getLocalHost().getHostName();
+      rootCertificateServer = new DefaultCAServer(subject,
+          getScmStorageConfig().getClusterID(),
+          getScmStorageConfig().getScmId(), certStore, new DefaultProfile(),
+          Paths.get(SCM_CA_CERT_STORAGE_DIR, SCM_CA_PATH).toString());
+      scmCertificateServer = rootCertificateServer;
     }
-    return null;
+
+    securityProtocolServer = new SCMSecurityProtocolServer(conf,
+        rootCertificateServer, this);
   }
+
+  public CertificateServer getRootCertificateServer() {
+    return rootCertificateServer;
+  }
+
+  public CertificateServer getScmCertificateServer() {
+    return scmCertificateServer;
+  }
+
+  public SCMCertificateClient getScmCertificateClient() {
+    return scmCertificateClient;
+  }
+
   /**
    * Init the metadata store based on the configurator.
    * @param conf - Config
@@ -645,36 +713,6 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
           + "SCM user login failed.");
     }
     LOG.info("SCM login successful.");
-  }
-
-  /**
-   * This function creates/initializes a certificate server as needed.
-   * This function is idempotent, so calling this again and again after the
-   * server is initialized is not a problem.
-   *
-   * @param clusterID - Cluster ID
-   * @param scmID     - SCM ID
-   */
-  private CertificateServer initializeCertificateServer(String clusterID,
-      String scmID) throws IOException {
-    // TODO: Support Certificate Server loading via Class Name loader.
-    // So it is easy to use different Certificate Servers if needed.
-    String subject = "scm@" + InetAddress.getLocalHost().getHostName();
-    if(this.scmMetadataStore == null) {
-      LOG.error("Cannot initialize Certificate Server without a valid meta " +
-          "data layer.");
-      throw new SCMException("Cannot initialize CA without a valid metadata " +
-          "store", ResultCodes.SCM_NOT_INITIALIZED);
-    }
-
-    CertificateStore certStore =
-        new SCMCertStore.Builder().setMetadaStore(scmMetadataStore)
-            .setRatisServer(scmHAManager.getRatisServer())
-            .setCRLSequenceId(getLastSequenceIdForCRL()).build();
-
-    return new DefaultCAServer(subject, clusterID, scmID, certStore,
-        new DefaultProfile(),
-        Paths.get(SCM_CA_CERT_STORAGE_DIR, SCM_CA_PATH).toString());
   }
 
   long getLastSequenceIdForCRL() throws IOException {
@@ -833,12 +871,20 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
           Preconditions.checkNotNull(UUID.fromString(clusterId));
           scmStorageConfig.setClusterId(clusterId);
         }
-        scmStorageConfig.initialize();
+
         if (SCMHAUtils.isSCMHAEnabled(conf)) {
           SCMRatisServerImpl.initialize(scmStorageConfig.getClusterID(),
               scmStorageConfig.getScmId(), haDetails.getLocalNodeDetails(),
               conf);
         }
+
+        if (OzoneSecurityUtil.isSecurityEnabled(conf)) {
+          HASecurityUtils.initializeSecurity(scmStorageConfig,
+              scmStorageConfig.getScmId(), conf, getScmAddress(haDetails,
+                  conf), true);
+        }
+        scmStorageConfig.setPrimaryScmNodeId(scmStorageConfig.getScmId());
+        scmStorageConfig.initialize();
         LOG.info("SCM initialization succeeded. Current cluster id for sd={}"
                 + "; cid={}; layoutVersion={}; scmId={}",
             scmStorageConfig.getStorageDir(), scmStorageConfig.getClusterID(),
@@ -859,6 +905,40 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
       }
       return true;
     }
+  }
+
+  private static InetSocketAddress getScmAddress(SCMHANodeDetails haDetails,
+      ConfigurationSource conf) throws IOException {
+    List<SCMNodeInfo> scmNodeInfoList = SCMNodeInfo.buildNodeInfo(
+        conf);
+    Preconditions.checkNotNull(scmNodeInfoList, "scmNodeInfoList is null");
+
+    InetSocketAddress scmAddress = null;
+    if (SCMHAUtils.getScmServiceId(conf) != null) {
+      for (SCMNodeInfo scmNodeInfo : scmNodeInfoList) {
+        if (haDetails.getLocalNodeDetails().getNodeId() != null
+            && haDetails.getLocalNodeDetails().getNodeId().equals(
+            scmNodeInfo.getNodeId())) {
+          scmAddress =
+              NetUtils.createSocketAddr(scmNodeInfo.getScmClientAddress());
+        }
+      }
+    } else  {
+      // Get Local host and use scm client port
+      if (scmNodeInfoList.get(0).getScmClientAddress() == null) {
+        LOG.error("SCM Address not able to figure out from config, finding " +
+            "hostname from InetAddress.");
+        scmAddress =
+            NetUtils.createSocketAddr(InetAddress.getLocalHost().getHostName(),
+                ScmConfigKeys.OZONE_SCM_CLIENT_PORT_DEFAULT);
+      } else {
+        scmAddress = NetUtils.createSocketAddr(
+            scmNodeInfoList.get(0).getScmClientAddress());
+      }
+    }
+
+
+    return scmAddress;
   }
 
   /**
