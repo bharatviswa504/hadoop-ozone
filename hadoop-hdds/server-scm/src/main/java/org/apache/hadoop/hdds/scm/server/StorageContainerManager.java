@@ -34,6 +34,8 @@ import com.google.common.cache.RemovalListener;
 import com.google.protobuf.BlockingService;
 
 import java.nio.file.Paths;
+import java.security.cert.CertificateException;
+import java.security.cert.X509Certificate;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -70,6 +72,7 @@ import org.apache.hadoop.hdds.scm.ScmInfo;
 import org.apache.hadoop.hdds.security.x509.certificate.authority.CertificateStore;
 import org.apache.hadoop.hdds.security.x509.certificate.authority.PKIProfiles.DefaultProfile;
 import org.apache.hadoop.hdds.security.x509.certificate.client.SCMCertificateClient;
+import org.apache.hadoop.hdds.security.x509.certificate.utils.CertificateCodec;
 import org.apache.hadoop.hdds.utils.HAUtils;
 import org.apache.hadoop.hdds.utils.HddsServerUtil;
 import org.apache.hadoop.hdds.scm.ScmConfig;
@@ -189,6 +192,7 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
   private NodeDecommissionManager scmDecommissionManager;
 
   private SCMMetadataStore scmMetadataStore;
+  private CertificateStore certificateStore;
   private SCMHAManager scmHAManager;
   private SCMContext scmContext;
   private SequenceIdGenerator sequenceIdGen;
@@ -227,6 +231,7 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
   private SCMContainerMetrics scmContainerMetrics;
   private SCMContainerPlacementMetrics placementMetrics;
   private MetricsSystem ms;
+  private String primaryScmNodeId;
 
   /**
    *  Network topology Map.
@@ -291,11 +296,8 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
           "failure.", ResultCodes.SCM_NOT_INITIALIZED);
     }
 
-    if (scmStorageConfig.getPrimaryScmNodeId() != null) {
-      scmCertificateClient =
-          new SCMCertificateClient(new SecurityConfig(configuration),
-              scmStorageConfig.getScmCertSerialId());
-    }
+    primaryScmNodeId = scmStorageConfig.getPrimaryScmNodeId();
+    initializeCertificateClient();
 
     /**
      * Important : This initialization sequence is assumed by some of our tests.
@@ -409,6 +411,14 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
 
     registerMXBean();
     registerMetricsSource(this);
+  }
+
+  private void initializeCertificateClient() {
+    if (primaryScmNodeId != null) {
+      scmCertificateClient = new SCMCertificateClient(
+          new SecurityConfig(configuration),
+          scmStorageConfig.getScmCertSerialId());
+    }
   }
 
   public OzoneConfiguration getConfiguration() {
@@ -579,16 +589,15 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
           "store", ResultCodes.SCM_NOT_INITIALIZED);
     }
 
-    CertificateStore certStore =
+    certificateStore =
         new SCMCertStore.Builder().setMetadaStore(scmMetadataStore)
             .setRatisServer(scmHAManager.getRatisServer())
             .setCRLSequenceId(getLastSequenceIdForCRL()).build();
 
-    String primaryScm = scmStorageConfig.getPrimaryScmNodeId();
 
     // If primary SCM node Id is set it means this is a cluster which has
     // performed init with SCM HA version code.
-    if (primaryScm != null) {
+    if (primaryScmNodeId != null) {
       // Start specific instance SCM CA server.
       String subject = "scm@"+InetAddress.getLocalHost().getHostName();
       if (configurator.getCertificateServer() != null) {
@@ -596,21 +605,21 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
       } else {
         scmCertificateServer = new DefaultCAServer(subject,
             scmStorageConfig.getClusterID(), scmStorageConfig.getScmId(),
-            certStore, new DefaultProfile(),
+            certificateStore, new DefaultProfile(),
             scmCertificateClient.getComponentName());
         // INTERMEDIARY_CA which issues certs to DN and OM.
         scmCertificateServer.init(new SecurityConfig(configuration),
             CertificateServer.CAType.INTERMEDIARY_CA);
       }
 
-      if (primaryScm.equals(scmStorageConfig.getScmId())) {
+      if (primaryScmNodeId.equals(scmStorageConfig.getScmId())) {
         if (configurator.getCertificateServer() != null) {
           this.rootCertificateServer = configurator.getCertificateServer();
         } else {
           rootCertificateServer =
               HASecurityUtils.initializeRootCertificateServer(
               getScmStorageConfig().getClusterID(),
-              getScmStorageConfig().getScmId(), certStore);
+              getScmStorageConfig().getScmId(), certificateStore);
           rootCertificateServer.init(new SecurityConfig(configuration),
               CertificateServer.CAType.SELF_SIGNED_CA);
         }
@@ -622,9 +631,16 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
         // and ratis server initialized with statemachine. We need to do only
         // for primary scm, for other bootstrapped scm's certificates will be
         // persisted via ratis.
-        if (certStore.getCertificateByID(certSerial, VALID_CERTS) == null) {
-          certStore.storeValidScmCertificate(
+        if (certificateStore.getCertificateByID(certSerial,
+            VALID_CERTS) == null) {
+          certificateStore.storeValidScmCertificate(
               certSerial, scmCertificateClient.getCertificate());
+        }
+        X509Certificate rootCACert = scmCertificateClient.getCACertificate();
+        if (certificateStore.getCertificateByID(rootCACert.getSerialNumber(),
+            VALID_CERTS) == null) {
+          certificateStore.storeValidScmCertificate(
+              rootCACert.getSerialNumber(), rootCACert);
         }
       } else {
         rootCertificateServer = null;
@@ -637,7 +653,8 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
       String subject = "scm@" + InetAddress.getLocalHost().getHostName();
       rootCertificateServer = new DefaultCAServer(subject,
           getScmStorageConfig().getClusterID(),
-          getScmStorageConfig().getScmId(), certStore, new DefaultProfile(),
+          getScmStorageConfig().getScmId(), certificateStore,
+          new DefaultProfile(),
           Paths.get(SCM_CA_CERT_STORAGE_DIR, SCM_CA_PATH).toString());
       scmCertificateServer = rootCertificateServer;
     }
@@ -1098,6 +1115,7 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
     getDatanodeProtocolServer().start();
     if (getSecurityProtocolServer() != null) {
       getSecurityProtocolServer().start();
+      persistSCMCertificates();
     }
 
     scmBlockManager.start();
@@ -1116,6 +1134,33 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
     }
 
     setStartTime();
+  }
+
+  private void persistSCMCertificates() throws IOException {
+    // Fetch all CA's and persist during startup on bootstrap nodes. This
+    // is primarily being done to persist primary SCM Cert and Root CA.
+    // TODO: see if we can avoid doing this during every restart.
+    if (primaryScmNodeId != null && !primaryScmNodeId.equals(
+        scmStorageConfig.getScmId())) {
+      List<String> pemEncodedCerts =
+          securityProtocolServer.listCACertificate();
+
+      // Write the primary SCM CA and Root CA during startup.
+      for (String cert : pemEncodedCerts) {
+        try {
+          X509Certificate x509Certificate =
+              CertificateCodec.getX509Certificate(cert);
+          if (certificateStore.getCertificateByID(
+              x509Certificate.getSerialNumber(), VALID_CERTS) == null) {
+            certificateStore.storeValidScmCertificate(
+                x509Certificate.getSerialNumber(), x509Certificate);
+          }
+        } catch (CertificateException ex) {
+          LOG.error("Error while decoding CA Certificate", ex);
+          throw new IOException(ex);
+        }
+      }
+    }
   }
 
   /**
