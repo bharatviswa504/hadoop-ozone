@@ -48,6 +48,10 @@ services:
     ports:
       - 9864:9999
     command: ["/opt/hadoop/bin/ozone","datanode"]
+    extra_hosts:
+      - "scm1: 172.25.0.116"
+      - "scm2: 172.25.0.117"
+      - "scm3: 172.25.0.118"
     env_file:
       - docker-config
     environment:
@@ -63,6 +67,10 @@ services:
     ports:
       - 9866:9999
     command: ["/opt/hadoop/bin/ozone","datanode"]
+    extra_hosts:
+      - "scm1: 172.25.0.116"
+      - "scm2: 172.25.0.117"
+      - "scm3: 172.25.0.118"
     env_file:
       - docker-config
     environment:
@@ -78,6 +86,10 @@ services:
     ports:
       - 9868:9999
     command: ["/opt/hadoop/bin/ozone","datanode"]
+    extra_hosts:
+      - "scm1: 172.25.0.116"
+      - "scm2: 172.25.0.117"
+      - "scm3: 172.25.0.118"
     env_file:
       - docker-config
     environment:
@@ -102,6 +114,10 @@ services:
     env_file:
       - ./docker-config
     command: ["/opt/hadoop/bin/ozone","om"]
+    extra_hosts:
+      - "scm1: 172.25.0.116"
+      - "scm2: 172.25.0.117"
+      - "scm3: 172.25.0.118"
     networks:
       ozone_net:
         ipv4_address: 172.25.0.111
@@ -121,6 +137,10 @@ services:
     env_file:
       - ./docker-config
     command: ["/opt/hadoop/bin/ozone","om"]
+    extra_hosts:
+      - "scm1: 172.25.0.116"
+      - "scm2: 172.25.0.117"
+      - "scm3: 172.25.0.118"
     networks:
       ozone_net:
         ipv4_address: 172.25.0.112
@@ -140,6 +160,10 @@ services:
     env_file:
       - ./docker-config
     command: ["/opt/hadoop/bin/ozone","om"]
+    extra_hosts:
+      - "scm1: 172.25.0.116"
+      - "scm2: 172.25.0.117"
+      - "scm3: 172.25.0.118"
     networks:
       ozone_net:
         ipv4_address: 172.25.0.113
@@ -177,17 +201,20 @@ services:
       - "om1: 172.25.0.111"
       - "om2: 172.25.0.112"
       - "om3: 172.25.0.113"
+      - "scm1: 172.25.0.116"
+      - "scm2: 172.25.0.117"
+      - "scm3: 172.25.0.118"
     networks:
       ozone_net:
         ipv4_address: 172.25.0.115
-  scm:
+  scm1:
     image: apache/ozone-runner:${OZONE_RUNNER_VERSION}
-    hostname: scm
+    hostname: scm1
     volumes:
       - ../..:/opt/hadoop
     ports:
-      - 9876:9876
-      - 9860:9860
+      - 9990:9876
+      - 9992:9860
     env_file:
       - docker-config
     environment:
@@ -200,9 +227,66 @@ services:
       - "om1: 172.25.0.111"
       - "om2: 172.25.0.112"
       - "om3: 172.25.0.113"
+      - "scm1: 172.25.0.116"
+      - "scm2: 172.25.0.117"
+      - "scm3: 172.25.0.118"
     networks:
       ozone_net:
         ipv4_address: 172.25.0.116
+  scm2:
+    image: apache/ozone-runner:${OZONE_RUNNER_VERSION}
+    hostname: scm2
+    volumes:
+      - ../..:/opt/hadoop
+    ports:
+      - 9994:9876
+      - 9996:9860
+    env_file:
+      - docker-config
+    environment:
+      WAITFOR: scm1:9865
+      KERBEROS_KEYTABS: scm HTTP testuser testuser2
+      ENSURE_SCM_BOOTSTRAPPED: /data/metadata/scm/current/VERSION
+      OZONE-SITE.XML_hdds.scm.safemode.min.datanode: "${OZONE_SAFEMODE_MIN_DATANODES:-3}"
+      OZONE_OPTS:
+    command: ["/opt/hadoop/bin/ozone","scm"]
+    extra_hosts:
+      - "om1: 172.25.0.111"
+      - "om2: 172.25.0.112"
+      - "om3: 172.25.0.113"
+      - "scm1: 172.25.0.116"
+      - "scm2: 172.25.0.117"
+      - "scm3: 172.25.0.118"
+    networks:
+      ozone_net:
+        ipv4_address: 172.25.0.117
+  scm3:
+    image: apache/ozone-runner:${OZONE_RUNNER_VERSION}
+    hostname: scm3
+    volumes:
+      - ../..:/opt/hadoop
+    ports:
+      - 9998:9876
+      - 10002:9860
+    env_file:
+      - docker-config
+    environment:
+      WAITFOR: scm2:9865
+      KERBEROS_KEYTABS: scm HTTP testuser testuser2
+      ENSURE_SCM_BOOTSTRAPPED: /data/metadata/scm/current/VERSION
+      OZONE-SITE.XML_hdds.scm.safemode.min.datanode: "${OZONE_SAFEMODE_MIN_DATANODES:-3}"
+      OZONE_OPTS:
+    command: ["/opt/hadoop/bin/ozone","scm"]
+    extra_hosts:
+      - "om1: 172.25.0.111"
+      - "om2: 172.25.0.112"
+      - "om3: 172.25.0.113"
+      - "scm1: 172.25.0.116"
+      - "scm2: 172.25.0.117"
+      - "scm3: 172.25.0.118"
+    networks:
+      ozone_net:
+        ipv4_address: 172.25.0.118
 networks:
   ozone_net:
     ipam:

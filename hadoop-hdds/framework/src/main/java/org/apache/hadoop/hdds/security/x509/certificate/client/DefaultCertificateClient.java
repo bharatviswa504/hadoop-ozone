@@ -899,8 +899,9 @@ public abstract class DefaultCertificateClient implements CertificateClient {
   public List<String> listCA() throws IOException {
     if (pemEncodedCACerts == null) {
       try {
-        SCMSecurityProtocol scmSecurityProtocolClient = getScmSecurityClient(
-            (OzoneConfiguration) securityConfig.getConfiguration());
+        SCMSecurityProtocol scmSecurityProtocolClient =
+            HddsServerUtil.getScmSecurityClient(
+                (OzoneConfiguration) securityConfig.getConfiguration());
         pemEncodedCACerts =
             scmSecurityProtocolClient.listCACertificate();
         return pemEncodedCACerts;

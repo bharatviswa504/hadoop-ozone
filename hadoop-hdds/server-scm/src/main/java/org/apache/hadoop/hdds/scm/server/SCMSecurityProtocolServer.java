@@ -158,7 +158,7 @@ public class SCMSecurityProtocolServer implements SCMSecurityProtocol {
         scmNodeDetails.getHostName(), scmNodeDetails.getScmNodeId());
 
     // Check clusterID
-    if (storageContainerManager.getClusterId().equals(
+    if (!storageContainerManager.getClusterId().equals(
         scmNodeDetails.getClusterId())) {
       throw new IOException("SCM ClusterId mismatch. Peer SCM ClusterId " +
           scmNodeDetails.getClusterId() + ", primary SCM ClusterId "
@@ -274,8 +274,8 @@ public class SCMSecurityProtocolServer implements SCMSecurityProtocol {
   public List<String> listCertificate(NodeType role,
       long startSerialId, int count, boolean isRevoked) throws IOException {
     List<X509Certificate> certificates =
-        rootCertificateServer.listCertificate(role, startSerialId, count,
-            isRevoked);
+        storageContainerManager.getScmCertificateServer()
+            .listCertificate(role, startSerialId, count, isRevoked);
     List<String> results = new ArrayList<>(certificates.size());
     for (X509Certificate cert : certificates) {
       try {

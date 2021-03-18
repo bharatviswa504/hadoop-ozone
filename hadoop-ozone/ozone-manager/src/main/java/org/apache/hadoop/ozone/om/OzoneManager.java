@@ -1141,6 +1141,7 @@ public final class OzoneManager extends ServiceRuntimeInfoImpl
         // As right now with this approach only it will get new CA's after
         // restart only from SCM.
         caCertPemList = certClient.listCA();
+        LOG.info("OM Received listCA size {}", caCertPemList.size());
       }
     }
     // Set metrics and start metrics back ground thread

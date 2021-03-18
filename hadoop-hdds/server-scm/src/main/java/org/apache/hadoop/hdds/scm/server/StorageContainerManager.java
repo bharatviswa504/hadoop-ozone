@@ -306,7 +306,7 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
      * add any other initialization above the Security checks please.
      */
     if (OzoneSecurityUtil.isSecurityEnabled(conf)) {
-      loginAsSCMUser(conf);
+      loginAsSCMUser(scmHANodeDetails, conf);
     }
 
     // Creates the SCM DBs or opens them if it exists.
@@ -633,12 +633,14 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
         // persisted via ratis.
         if (certificateStore.getCertificateByID(certSerial,
             VALID_CERTS) == null) {
+          LOG.info("Storing certSerial", certSerial);
           certificateStore.storeValidScmCertificate(
               certSerial, scmCertificateClient.getCertificate());
         }
         X509Certificate rootCACert = scmCertificateClient.getCACertificate();
         if (certificateStore.getCertificateByID(rootCACert.getSerialNumber(),
             VALID_CERTS) == null) {
+          LOG.info("Storing root certSerial", certSerial);
           certificateStore.storeValidScmCertificate(
               rootCACert.getSerialNumber(), rootCACert);
         }
@@ -696,10 +698,11 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
    *
    * @param conf
    */
-  private void loginAsSCMUser(ConfigurationSource conf)
+  private static void loginAsSCMUser(SCMHANodeDetails scmhaNodeDetails,
+      ConfigurationSource conf)
       throws IOException, AuthenticationException {
     if (LOG.isDebugEnabled()) {
-      ScmConfig scmConfig = configuration.getObject(ScmConfig.class);
+      ScmConfig scmConfig = conf.getObject(ScmConfig.class);
       LOG.debug("Ozone security is enabled. Attempting login for SCM user. "
               + "Principal: {}, keytab: {}",
           scmConfig.getKerberosPrincipal(),
@@ -711,12 +714,11 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
     if (SecurityUtil.getAuthenticationMethod(hadoopConf).equals(
         AuthenticationMethod.KERBEROS)) {
       UserGroupInformation.setConfiguration(hadoopConf);
-      InetSocketAddress socAddr = HddsServerUtil
-          .getScmBlockClientBindAddress(conf);
+      InetSocketAddress socketAddress = getScmAddress(scmhaNodeDetails, conf);
       SecurityUtil.login(hadoopConf,
-            ScmConfig.ConfigStrings.HDDS_SCM_KERBEROS_KEYTAB_FILE_KEY,
-            ScmConfig.ConfigStrings.HDDS_SCM_KERBEROS_PRINCIPAL_KEY,
-            socAddr.getHostName());
+          ScmConfig.ConfigStrings.HDDS_SCM_KERBEROS_KEYTAB_FILE_KEY,
+          ScmConfig.ConfigStrings.HDDS_SCM_KERBEROS_PRINCIPAL_KEY,
+          socketAddress.getHostName());
     } else {
       throw new AuthenticationException(SecurityUtil.getAuthenticationMethod(
           hadoopConf) + " authentication method not support. "
@@ -798,14 +800,17 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
    * @throws IOException if init fails due to I/O error
    */
   public static boolean scmBootstrap(OzoneConfiguration conf)
-      throws IOException {
+      throws AuthenticationException, IOException {
     if (!SCMHAUtils.isSCMHAEnabled(conf)) {
       LOG.error("Bootstrap is not supported without SCM HA.");
       return false;
     }
+    SCMHANodeDetails scmhaNodeDetails = SCMHANodeDetails.loadSCMHAConfig(conf);
+
+    loginAsSCMUser(scmhaNodeDetails, conf);
     // The node here will try to fetch the cluster id from any of existing
     // running SCM instances.
-    SCMHANodeDetails scmhaNodeDetails = SCMHANodeDetails.loadSCMHAConfig(conf);
+
     String primordialSCM = SCMHAUtils.getPrimordialSCM(conf);
     String selfNodeId = scmhaNodeDetails.getLocalNodeDetails().getNodeId();
     if (primordialSCM != null && SCMHAUtils.isPrimordialSCM(conf, selfNodeId)) {
@@ -845,9 +850,13 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
 
         if(OzoneSecurityUtil.isSecurityEnabled(conf)) {
           HASecurityUtils.initializeSecurity(scmStorageConfig,
-              fetchedId, conf, getScmAddress(scmhaNodeDetails, conf), false);
+              scmInfo.getScmId(), conf, getScmAddress(scmhaNodeDetails, conf), false);
         }
+        scmStorageConfig.setPrimaryScmNodeId(scmInfo.getScmId());
         scmStorageConfig.initialize();
+        LOG.info("SCM BootStrap  is successful for ClusterID {}, SCMID {}",
+            scmInfo.getClusterId(), scmStorageConfig.getScmId());
+        LOG.info("Primary SCM Node ID {}", scmStorageConfig.getPrimaryScmNodeId());
       } catch (IOException ioe) {
         LOG.error("Could not initialize SCM version file", ioe);
         return false;
@@ -935,20 +944,20 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
             && haDetails.getLocalNodeDetails().getNodeId().equals(
             scmNodeInfo.getNodeId())) {
           scmAddress =
-              NetUtils.createSocketAddr(scmNodeInfo.getScmClientAddress());
+              NetUtils.createSocketAddr(scmNodeInfo.getBlockClientAddress());
         }
       }
     } else  {
       // Get Local host and use scm client port
-      if (scmNodeInfoList.get(0).getScmClientAddress() == null) {
+      if (scmNodeInfoList.get(0).getBlockClientAddress() == null) {
         LOG.error("SCM Address not able to figure out from config, finding " +
             "hostname from InetAddress.");
         scmAddress =
             NetUtils.createSocketAddr(InetAddress.getLocalHost().getHostName(),
-                ScmConfigKeys.OZONE_SCM_CLIENT_PORT_DEFAULT);
+                ScmConfigKeys.OZONE_SCM_BLOCK_CLIENT_PORT_DEFAULT);
       } else {
         scmAddress = NetUtils.createSocketAddr(
-            scmNodeInfoList.get(0).getScmClientAddress());
+            scmNodeInfoList.get(0).getBlockClientAddress());
       }
     }
 
@@ -1114,8 +1123,8 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
     }
     getDatanodeProtocolServer().start();
     if (getSecurityProtocolServer() != null) {
-      getSecurityProtocolServer().start();
       persistSCMCertificates();
+      getSecurityProtocolServer().start();
     }
 
     scmBlockManager.start();
@@ -1152,6 +1161,8 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
               CertificateCodec.getX509Certificate(cert);
           if (certificateStore.getCertificateByID(
               x509Certificate.getSerialNumber(), VALID_CERTS) == null) {
+            LOG.info("scm bootstrap persist certserial",
+                x509Certificate.getSerialNumber());
             certificateStore.storeValidScmCertificate(
                 x509Certificate.getSerialNumber(), x509Certificate);
           }
