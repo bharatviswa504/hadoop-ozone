@@ -633,14 +633,14 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
         // persisted via ratis.
         if (certificateStore.getCertificateByID(certSerial,
             VALID_CERTS) == null) {
-          LOG.info("Storing certSerial", certSerial);
+          LOG.info("Storing certSerial {}", certSerial);
           certificateStore.storeValidScmCertificate(
               certSerial, scmCertificateClient.getCertificate());
         }
         X509Certificate rootCACert = scmCertificateClient.getCACertificate();
         if (certificateStore.getCertificateByID(rootCACert.getSerialNumber(),
             VALID_CERTS) == null) {
-          LOG.info("Storing root certSerial", certSerial);
+          LOG.info("Storing root certSerial {}", certSerial);
           certificateStore.storeValidScmCertificate(
               rootCACert.getSerialNumber(), rootCACert);
         }
@@ -850,13 +850,15 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
 
         if(OzoneSecurityUtil.isSecurityEnabled(conf)) {
           HASecurityUtils.initializeSecurity(scmStorageConfig,
-              scmInfo.getScmId(), conf, getScmAddress(scmhaNodeDetails, conf), false);
+              scmInfo.getScmId(), conf, getScmAddress(scmhaNodeDetails, conf),
+              false);
         }
         scmStorageConfig.setPrimaryScmNodeId(scmInfo.getScmId());
         scmStorageConfig.initialize();
         LOG.info("SCM BootStrap  is successful for ClusterID {}, SCMID {}",
             scmInfo.getClusterId(), scmStorageConfig.getScmId());
-        LOG.info("Primary SCM Node ID {}", scmStorageConfig.getPrimaryScmNodeId());
+        LOG.info("Primary SCM Node ID {}",
+            scmStorageConfig.getPrimaryScmNodeId());
       } catch (IOException ioe) {
         LOG.error("Could not initialize SCM version file", ioe);
         return false;
@@ -1161,7 +1163,7 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
               CertificateCodec.getX509Certificate(cert);
           if (certificateStore.getCertificateByID(
               x509Certificate.getSerialNumber(), VALID_CERTS) == null) {
-            LOG.info("scm bootstrap persist certserial",
+            LOG.info("scm bootstrap persist certserial {}",
                 x509Certificate.getSerialNumber());
             certificateStore.storeValidScmCertificate(
                 x509Certificate.getSerialNumber(), x509Certificate);

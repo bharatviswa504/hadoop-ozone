@@ -176,7 +176,7 @@ public class OzoneContainer {
     if (certClient != null) {
       if (SCMHAUtils.isSCMHAEnabled(conf)) {
         List<String> pemEncodedCerts = certClient.listCA();
-        LOG.info("DN received certs size {}",pemEncodedCerts);
+        LOG.info("DN received certs size {}", pemEncodedCerts);
         x509Certificates = new ArrayList<>(pemEncodedCerts.size());
         for (String cert : pemEncodedCerts) {
           try {
