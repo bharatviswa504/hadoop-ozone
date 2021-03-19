@@ -251,7 +251,9 @@ public final class HASecurityUtils {
     // Get host name.
     String hostname = scmAddress.getAddress().getHostName();
 
-    String subject = "scm@"+ hostname;
+    String subject = "scm@" + hostname;
+
+
 
     builder.setKey(keyPair)
         .setConfiguration(config)

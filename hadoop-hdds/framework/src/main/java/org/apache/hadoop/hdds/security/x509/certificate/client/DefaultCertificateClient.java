@@ -68,6 +68,7 @@ import static org.apache.hadoop.hdds.security.x509.exceptions.CertificateExcepti
 import static org.apache.hadoop.hdds.security.x509.exceptions.CertificateException.ErrorCode.CSR_ERROR;
 import org.bouncycastle.cert.X509CertificateHolder;
 import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Default Certificate client implementation. It provides certificate
@@ -93,6 +94,9 @@ public abstract class DefaultCertificateClient implements CertificateClient {
   private String rootCaCertId;
   private String component;
   private List<String> pemEncodedCACerts = null;
+
+  private static Logger LOG =
+      LoggerFactory.getLogger(DefaultCertificateClient.class);
 
   DefaultCertificateClient(SecurityConfig securityConfig, Logger log,
       String certSerialId, String component) {
@@ -481,6 +485,8 @@ public abstract class DefaultCertificateClient implements CertificateClient {
             builder.addIpAddress(ip.getHostAddress());
             if(validator.isValid(ip.getCanonicalHostName())) {
               builder.addDnsName(ip.getCanonicalHostName());
+            } else {
+              LOG.error("InValid domain", ip.getCanonicalHostName());
             }
           });
     } catch (IOException e) {
