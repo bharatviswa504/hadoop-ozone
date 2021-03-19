@@ -306,7 +306,7 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
      * add any other initialization above the Security checks please.
      */
     if (OzoneSecurityUtil.isSecurityEnabled(conf)) {
-      loginAsSCMUser(scmHANodeDetails, conf);
+      loginAsSCMUserIfSecurityEnabled(scmHANodeDetails, conf);
     }
 
     // Creates the SCM DBs or opens them if it exists.
@@ -698,33 +698,35 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
    *
    * @param conf
    */
-  private static void loginAsSCMUser(SCMHANodeDetails scmhaNodeDetails,
-      ConfigurationSource conf)
+  private static void loginAsSCMUserIfSecurityEnabled(
+      SCMHANodeDetails scmhaNodeDetails, ConfigurationSource conf)
       throws IOException, AuthenticationException {
-    if (LOG.isDebugEnabled()) {
-      ScmConfig scmConfig = conf.getObject(ScmConfig.class);
-      LOG.debug("Ozone security is enabled. Attempting login for SCM user. "
-              + "Principal: {}, keytab: {}",
-          scmConfig.getKerberosPrincipal(),
-          scmConfig.getKerberosKeytab());
-    }
+    if (OzoneSecurityUtil.isSecurityEnabled(conf)) {
+      if (LOG.isDebugEnabled()) {
+        ScmConfig scmConfig = conf.getObject(ScmConfig.class);
+        LOG.debug("Ozone security is enabled. Attempting login for SCM user. "
+                + "Principal: {}, keytab: {}",
+            scmConfig.getKerberosPrincipal(),
+            scmConfig.getKerberosKeytab());
+      }
 
-    Configuration hadoopConf =
-        LegacyHadoopConfigurationSource.asHadoopConfiguration(conf);
-    if (SecurityUtil.getAuthenticationMethod(hadoopConf).equals(
-        AuthenticationMethod.KERBEROS)) {
-      UserGroupInformation.setConfiguration(hadoopConf);
-      InetSocketAddress socketAddress = getScmAddress(scmhaNodeDetails, conf);
-      SecurityUtil.login(hadoopConf,
-          ScmConfig.ConfigStrings.HDDS_SCM_KERBEROS_KEYTAB_FILE_KEY,
-          ScmConfig.ConfigStrings.HDDS_SCM_KERBEROS_PRINCIPAL_KEY,
-          socketAddress.getHostName());
-    } else {
-      throw new AuthenticationException(SecurityUtil.getAuthenticationMethod(
-          hadoopConf) + " authentication method not support. "
-          + "SCM user login failed.");
+      Configuration hadoopConf =
+          LegacyHadoopConfigurationSource.asHadoopConfiguration(conf);
+      if (SecurityUtil.getAuthenticationMethod(hadoopConf).equals(
+          AuthenticationMethod.KERBEROS)) {
+        UserGroupInformation.setConfiguration(hadoopConf);
+        InetSocketAddress socketAddress = getScmAddress(scmhaNodeDetails, conf);
+        SecurityUtil.login(hadoopConf,
+            ScmConfig.ConfigStrings.HDDS_SCM_KERBEROS_KEYTAB_FILE_KEY,
+            ScmConfig.ConfigStrings.HDDS_SCM_KERBEROS_PRINCIPAL_KEY,
+            socketAddress.getHostName());
+      } else {
+        throw new AuthenticationException(SecurityUtil.getAuthenticationMethod(
+            hadoopConf) + " authentication method not support. "
+            + "SCM user login failed.");
+      }
+      LOG.info("SCM login successful.");
     }
-    LOG.info("SCM login successful.");
   }
 
   long getLastSequenceIdForCRL() throws IOException {
@@ -807,7 +809,7 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
     }
     SCMHANodeDetails scmhaNodeDetails = SCMHANodeDetails.loadSCMHAConfig(conf);
 
-    loginAsSCMUser(scmhaNodeDetails, conf);
+    loginAsSCMUserIfSecurityEnabled(scmhaNodeDetails, conf);
     // The node here will try to fetch the cluster id from any of existing
     // running SCM instances.
 
