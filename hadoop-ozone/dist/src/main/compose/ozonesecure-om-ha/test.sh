@@ -20,7 +20,7 @@ export COMPOSE_DIR
 
 export SECURITY_ENABLED=true
 export OM_SERVICE_ID="id1"
-export SCM=scm1
+export SCM=scm1.org
 
 # shellcheck source=/dev/null
 source "$COMPOSE_DIR/../testlib.sh"
