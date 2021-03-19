@@ -95,7 +95,7 @@ public abstract class DefaultCertificateClient implements CertificateClient {
   private String component;
   private List<String> pemEncodedCACerts = null;
 
-  private static Logger LOG =
+  private static final Logger LOG =
       LoggerFactory.getLogger(DefaultCertificateClient.class);
 
   DefaultCertificateClient(SecurityConfig securityConfig, Logger log,

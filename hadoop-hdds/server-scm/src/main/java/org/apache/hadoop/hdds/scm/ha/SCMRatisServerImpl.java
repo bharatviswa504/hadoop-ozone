@@ -85,8 +85,8 @@ public class SCMRatisServerImpl implements SCMRatisServer {
     // trigger leader election.
 
    Parameters parameters =
-        HASecurityUtils.createServerTlsParameters(new SecurityConfig(conf),
-            scm.getScmCertificateClient());
+       HASecurityUtils.createServerTlsParameters(new SecurityConfig(conf),
+           scm.getScmCertificateClient());
     this.server = newRaftServer(scm.getScmId(), conf)
         .setStateMachine(stateMachine)
         .setGroup(RaftGroup.valueOf(groupId))
