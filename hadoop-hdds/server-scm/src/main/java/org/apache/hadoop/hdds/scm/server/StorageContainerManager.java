@@ -640,7 +640,7 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
         X509Certificate rootCACert = scmCertificateClient.getCACertificate();
         if (certificateStore.getCertificateByID(rootCACert.getSerialNumber(),
             VALID_CERTS) == null) {
-          LOG.info("Storing root certSerial {}", certSerial);
+          LOG.info("Storing root certSerial {}", rootCACert.getSerialNumber());
           certificateStore.storeValidScmCertificate(
               rootCACert.getSerialNumber(), rootCACert);
         }
@@ -1127,8 +1127,8 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
     }
     getDatanodeProtocolServer().start();
     if (getSecurityProtocolServer() != null) {
-      persistSCMCertificates();
       getSecurityProtocolServer().start();
+      persistSCMCertificates();
     }
 
     scmBlockManager.start();
@@ -1156,7 +1156,7 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
     if (primaryScmNodeId != null && !primaryScmNodeId.equals(
         scmStorageConfig.getScmId())) {
       List<String> pemEncodedCerts =
-          securityProtocolServer.listCACertificate();
+          scmCertificateClient.updateCAList();
 
       // Write the primary SCM CA and Root CA during startup.
       for (String cert : pemEncodedCerts) {
@@ -1165,8 +1165,8 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
               CertificateCodec.getX509Certificate(cert);
           if (certificateStore.getCertificateByID(
               x509Certificate.getSerialNumber(), VALID_CERTS) == null) {
-            LOG.info("scm bootstrap persist certserial {}",
-                x509Certificate.getSerialNumber());
+            LOG.info("Persist certserial {} on Scm Bootstrap Node {}",
+                x509Certificate.getSerialNumber(), scmStorageConfig.getScmId());
             certificateStore.storeValidScmCertificate(
                 x509Certificate.getSerialNumber(), x509Certificate);
           }
