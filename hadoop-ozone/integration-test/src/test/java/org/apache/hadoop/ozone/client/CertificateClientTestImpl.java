@@ -203,4 +203,9 @@ public class CertificateClientTestImpl implements CertificateClient {
   public List<String> listCA() throws IOException  {
     return null;
   }
+
+  @Override
+  public List<String> updateCAList() throws IOException  {
+    return null;
+  }
 }

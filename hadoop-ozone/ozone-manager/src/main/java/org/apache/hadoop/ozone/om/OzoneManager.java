@@ -67,7 +67,6 @@ import org.apache.hadoop.hdds.protocolPB.SCMSecurityProtocolClientSideTranslator
 import org.apache.hadoop.hdds.scm.ScmInfo;
 import org.apache.hadoop.hdds.scm.client.HddsClientUtils;
 import org.apache.hadoop.hdds.scm.container.common.helpers.ExcludeList;
-import org.apache.hadoop.hdds.scm.ha.SCMHAUtils;
 import org.apache.hadoop.hdds.scm.protocol.ScmBlockLocationProtocol;
 import org.apache.hadoop.hdds.scm.protocol.StorageContainerLocationProtocol;
 import org.apache.hadoop.hdds.scm.protocolPB.StorageContainerLocationProtocolClientSideTranslatorPB;
@@ -1125,25 +1124,14 @@ public final class OzoneManager extends ServiceRuntimeInfoImpl
     metadataManager.start(configuration);
     startSecretManagerIfNecessary();
 
+
+    // Perform this to make it work with old clients.
     if (certClient != null) {
-      if (!SCMHAUtils.isSCMHAEnabled(configuration)) {
-        if (certClient.getRootCACertificate() != null) {
-          caCertPem = CertificateCodec.getPEMEncodedString(
-              certClient.getCACertificate());
-        }
-        caCertPem = CertificateCodec.getPEMEncodedString(
-            certClient.getCACertificate());
-        caCertPemList.add(caCertPem);
-      } else {
-        // IF HA enabled then only make call.
-        // TODO: If SCMs are bootstrapped later, then listCA need to be
-        //  refetched if listCA size is less than scm ha config node list size.
-        // As right now with this approach only it will get new CA's after
-        // restart only from SCM.
-        caCertPemList = certClient.listCA();
-        LOG.info("OM Received listCA size {}", caCertPemList.size());
-      }
+      caCertPem =
+          CertificateCodec.getPEMEncodedString(certClient.getCACertificate());
+      caCertPemList = HAUtils.buildCAList(certClient, configuration);
     }
+
     // Set metrics and start metrics back ground thread
     metrics.setNumVolumes(metadataManager.countRowsInTable(metadataManager
         .getVolumeTable()));

@@ -184,4 +184,10 @@ public final class SCMHAUtils {
     }
     return conf;
   }
+
+  public static Collection<String> getSCMNodeIds(
+      ConfigurationSource configuration) {
+    String scmServiceId = SCMHAUtils.getScmServiceId(configuration);
+    return SCMHAUtils.getSCMNodeIds(configuration, scmServiceId);
+  }
 }

@@ -68,7 +68,6 @@ import static org.apache.hadoop.hdds.security.x509.exceptions.CertificateExcepti
 import static org.apache.hadoop.hdds.security.x509.exceptions.CertificateException.ErrorCode.CSR_ERROR;
 import org.bouncycastle.cert.X509CertificateHolder;
 import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Default Certificate client implementation. It provides certificate
@@ -94,9 +93,6 @@ public abstract class DefaultCertificateClient implements CertificateClient {
   private String rootCaCertId;
   private String component;
   private List<String> pemEncodedCACerts = null;
-
-  private static final Logger LOG =
-      LoggerFactory.getLogger(DefaultCertificateClient.class);
 
   DefaultCertificateClient(SecurityConfig securityConfig, Logger log,
       String certSerialId, String component) {
@@ -486,7 +482,7 @@ public abstract class DefaultCertificateClient implements CertificateClient {
             if(validator.isValid(ip.getCanonicalHostName())) {
               builder.addDnsName(ip.getCanonicalHostName());
             } else {
-              LOG.error("InValid domain", ip.getCanonicalHostName());
+              getLogger().error("InValid domain", ip.getCanonicalHostName());
             }
           });
     } catch (IOException e) {
@@ -874,19 +870,23 @@ public abstract class DefaultCertificateClient implements CertificateClient {
   @Override
   public List<String> listCA() throws IOException {
     if (pemEncodedCACerts == null) {
-      try {
-        SCMSecurityProtocol scmSecurityProtocolClient =
-            HddsServerUtil.getScmSecurityClient(
-                (OzoneConfiguration) securityConfig.getConfiguration());
-        pemEncodedCACerts =
-            scmSecurityProtocolClient.listCACertificate();
-        return pemEncodedCACerts;
-      } catch (Exception e) {
-        getLogger().error("Error during listCA", e);
-        throw new CertificateException("Error during listCA ", e,
-            CERTIFICATE_ERROR);
-      }
+      updateCAList();
     }
     return pemEncodedCACerts;
+  }
+
+  public List<String> updateCAList() throws IOException {
+    try {
+      SCMSecurityProtocol scmSecurityProtocolClient =
+          HddsServerUtil.getScmSecurityClient(
+              securityConfig.getConfiguration());
+      pemEncodedCACerts =
+          scmSecurityProtocolClient.listCACertificate();
+      return pemEncodedCACerts;
+    } catch (Exception e) {
+      getLogger().error("Error during updating CA list", e);
+      throw new CertificateException("Error during updating CA list", e,
+          CERTIFICATE_ERROR);
+    }
   }
 }

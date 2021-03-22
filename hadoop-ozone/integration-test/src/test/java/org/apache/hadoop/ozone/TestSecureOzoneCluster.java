@@ -304,9 +304,12 @@ public final class TestSecureOzoneCluster {
       assertNotNull(scmSecurityProtocolClient);
       String caCert = scmSecurityProtocolClient.getCACertificate();
       assertNotNull(caCert);
+      // Get some random certificate, used serial id 100 which will be
+      // unavailable as our serial id is time stamp. Serial id 1 is root CA,
+      // and it is persisted in DB.
       LambdaTestUtils.intercept(SCMSecurityException.class,
           "Certificate not found",
-          () -> scmSecurityProtocolClient.getCertificate("1"));
+          () -> scmSecurityProtocolClient.getCertificate("100"));
 
       // Case 2: User without Kerberos credentials should fail.
       ugi = UserGroupInformation.createRemoteUser("test");

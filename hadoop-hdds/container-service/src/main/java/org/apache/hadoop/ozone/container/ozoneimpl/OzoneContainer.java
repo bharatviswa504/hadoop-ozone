@@ -39,11 +39,11 @@ import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolPro
 import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.IncrementalContainerReportProto;
 import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.PipelineReportsProto;
 import org.apache.hadoop.hdds.ratis.RatisHelper;
-import org.apache.hadoop.hdds.scm.ha.SCMHAUtils;
 import org.apache.hadoop.hdds.security.token.BlockTokenVerifier;
 import org.apache.hadoop.hdds.security.x509.SecurityConfig;
 import org.apache.hadoop.hdds.security.x509.certificate.client.CertificateClient;
 import org.apache.hadoop.hdds.security.x509.certificate.utils.CertificateCodec;
+import org.apache.hadoop.hdds.utils.HAUtils;
 import org.apache.hadoop.ozone.container.common.helpers.ContainerMetrics;
 import org.apache.hadoop.ozone.container.common.impl.ContainerSet;
 import org.apache.hadoop.ozone.container.common.impl.HddsDispatcher;
@@ -174,23 +174,14 @@ public class OzoneContainer {
 
     List< X509Certificate > x509Certificates;
     if (certClient != null) {
-      if (SCMHAUtils.isSCMHAEnabled(conf)) {
-        List<String> pemEncodedCerts = certClient.listCA();
-        LOG.info("DN received certs size {}", pemEncodedCerts);
-        x509Certificates = new ArrayList<>(pemEncodedCerts.size());
-        for (String cert : pemEncodedCerts) {
-          try {
-            x509Certificates.add(CertificateCodec.getX509Certificate(cert));
-          } catch (CertificateException ex) {
-            LOG.error("Error while fetching CA");
-            throw new IOException(ex);
-          }
-        }
-      } else {
-        x509Certificates = new ArrayList<>();
-        x509Certificates.add(certClient.getCACertificate());
-        if (certClient.getRootCACertificate() != null) {
-          x509Certificates.add(certClient.getRootCACertificate());
+      List<String> pemEncodedCerts = HAUtils.buildCAList(certClient, conf);
+      x509Certificates = new ArrayList<>(pemEncodedCerts.size());
+      for (String cert : pemEncodedCerts) {
+        try {
+          x509Certificates.add(CertificateCodec.getX509Certificate(cert));
+        } catch (CertificateException ex) {
+          LOG.error("Error while fetching CA", ex);
+          throw new IOException(ex);
         }
       }
     } else {

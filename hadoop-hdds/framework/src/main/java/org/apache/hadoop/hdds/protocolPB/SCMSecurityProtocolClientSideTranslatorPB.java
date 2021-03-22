@@ -265,12 +265,16 @@ public class SCMSecurityProtocolClientSideTranslatorPB implements
    */
   @Override
   public String getCACertificate() throws IOException {
+    return getCACert().getX509Certificate();
+  }
+
+
+  public SCMGetCertResponseProto getCACert() throws IOException {
     SCMGetCACertificateRequestProto protoIns = SCMGetCACertificateRequestProto
         .getDefaultInstance();
     return submitRequest(Type.GetCACertificate,
         builder -> builder.setGetCACertificateRequest(protoIns))
-        .getGetCertResponseProto().getX509Certificate();
-
+        .getGetCertResponseProto();
   }
 
   /**

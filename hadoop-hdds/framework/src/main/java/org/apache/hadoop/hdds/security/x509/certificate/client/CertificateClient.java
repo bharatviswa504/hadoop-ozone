@@ -236,4 +236,6 @@ public interface CertificateClient {
 
   List<String> listCA() throws IOException;
 
+  List<String> updateCAList() throws IOException;
+
 }

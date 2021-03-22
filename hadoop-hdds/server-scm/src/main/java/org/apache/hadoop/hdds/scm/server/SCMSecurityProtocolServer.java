@@ -293,7 +293,6 @@ public class SCMSecurityProtocolServer implements SCMSecurityProtocol {
   public List<String> listCACertificate() throws IOException {
     List<String> caCerts =
         listCertificate(NodeType.SCM, 0, 10, false);
-    caCerts.add(getRootCACertificate());
     return caCerts;
   }
 
